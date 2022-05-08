@@ -14,6 +14,7 @@ auth.set_access_token(a_t, a_s)
 api = tweepy.API(auth)
 
 
+
 # TWEETS contains all tweets containing {keyword} from last 7 days
 TWEETS = {}
 USERS = {}
@@ -311,6 +312,9 @@ def get_user(user_id):
     '''
     global USERS
 
+    if user_id == np.nan:
+
+
     # try downloaded tweets first
     if USERS != {} and user_id in USERS:
         return USERS[user_id]
@@ -329,11 +333,16 @@ def get_text(tweet_id):
     return get_tweet(tweet_id)['text']
 
 def get_retweet_count(_id):
-    if not get_tweet(_id)['was_retweeted']:
-        return 0
-    else:
-        print('\nFunction not done yet!')
-        pass
+    result = 0
+    try:
+        result = int(get_tweet(_id)['retweet_count'])
+    except KeyError:
+        result = int(get_tweet(_id)['retw_count'])
+    finally:
+        if result == np.nan:
+            return np.nan
+        else:
+            return int(result)
 
 def get_n_quotes(_id):
     print('\nFunction not done yet!')
@@ -397,7 +406,10 @@ def get_user_dict(tweet_id):
     return get_tweet(tweet_id)['user']
 
 def get_user_id(tweet_id):
-    return get_user_dict(tweet_id)['id_str']
+    try:
+        return get_user_dict(tweet_id)['id_str']
+    except TypeError:
+        return np.nan
 
 def get_handle(tweet_id):
     return get_user_dict(tweet_id)['screen_name']
