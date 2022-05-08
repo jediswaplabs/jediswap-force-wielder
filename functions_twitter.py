@@ -14,11 +14,12 @@ auth.set_access_token(a_t, a_s)
 api = tweepy.API(auth)
 
 
-# Set global variables & paths
+# TWEETS contains all tweets containing {keyword} from last 7 days
 TWEETS = {}
 USERS = {}
 TWEETS_json_path = './TWEETS_jediswap.json'
 USERS_json_path = './USERS_jediswap.json'
+
 keyword = 'jediswap'
 max_tweets = 2000
 
@@ -96,6 +97,23 @@ def load_USERS_from_json(USERS_json_path):
 def save_USERS_to_json(USERS_json_path):
     global USERS
     write_to_json(USERS, USERS_json_path)
+
+def populate_USERS_from_TWEETS():
+    '''
+    Takes TWEETS, gets all users from there,
+    queries Twitter API to fetch their data
+    and stores it in the USERS dictionary.
+    '''
+    global TWEETS
+    global USERS
+
+    users = set()
+    for tweet in TWEETS:
+        users.add(get_user_id(tweet))
+    for u in users:
+        d = get_user(u)
+        USERS[u] = d
+
 
 def tweet_to_dict(t, fill_with_nan=False):
     '''
@@ -218,6 +236,14 @@ def user_to_dict(user_status, fill_with_nan=False):
     d['lang'] = t['lang']
 
     return d
+
+def get_TWEETS():
+    global TWEETS
+    return TWEETS
+
+def get_USERS():
+    global USERS
+    return USERS
 
 
 
@@ -388,15 +414,14 @@ def orig_quote_or_rt(tweet_id):
         return 'original'
 
 
+# Uncomment if there is not TWEETS json file yet
 #TWEETS = get_tweets(keyword, max_tweets)
 
 
+# Populate memo variables with past known jediswap tweets (TWEETS) and their users
+load_TWEETS_from_json(TWEETS_json_path)
+load_USERS_from_json(USERS_json_path)
 
-
-
-
-# Populate memo variable with past known jediswap tweets (TWEETS)
-load_TWEETS_from_json()
 
 #At the end, save TWEETS to json file
 #save_TWEETS_to_json()
