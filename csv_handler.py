@@ -5,10 +5,6 @@ import os
 import pandas as pd
 from functions_twitter import *
 
-# Define paths
-in_csv = './Force Wielders (Responses) - Form Responses 1.tsv'
-out_path = './Force_Wielders_Followers_Retweets.csv'
-
 
 def load_csv(in_csv, sep=','):
     '''
