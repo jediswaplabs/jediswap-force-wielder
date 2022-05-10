@@ -1,9 +1,22 @@
-import os, json, tweepy
+import os, inspect, json, tweepy
 from dotenv import load_dotenv
+
+# TWEETS contains all tweets containing {keyword} from last 7 days
+#TWEETS = {}
+#USERS = {}
+SUSPENDED_USERS = set()
+TWEETS_json_path = './TWEETS_jediswap.json'
+USERS_json_path = './USERS_jediswap.json'
+USERS_json_path = './SUSPENDED_USERS_jediswap.json'
+
+keyword = 'jediswap'
+max_tweets = 2000
+
 
 # Instantiate Twitter API
 load_dotenv('./.env')
-c_k, c_s, a_t, a_s = (
+b_t, c_k, c_s, a_t, a_s = (
+    os.environ['TW_BEARER_TOKEN'],
     os.environ['TW_CONSUMER_KEY'],
     os.environ['TW_CONSUMER_SECRET'],
     os.environ['TW_CONSUMER_KEY'],
@@ -12,17 +25,7 @@ c_k, c_s, a_t, a_s = (
 auth = tweepy.OAuthHandler(c_k, c_s)
 auth.set_access_token(a_t, a_s)
 api = tweepy.API(auth)
-
-
-
-# TWEETS contains all tweets containing {keyword} from last 7 days
-TWEETS = {}
-USERS = {}
-TWEETS_json_path = './TWEETS_jediswap.json'
-USERS_json_path = './USERS_jediswap.json'
-
-keyword = 'jediswap'
-max_tweets = 2000
+client = tweepy.Client(b_t, c_k, c_s, a_t, a_s)
 
 
 
@@ -99,6 +102,17 @@ def save_USERS_to_json(USERS_json_path):
     global USERS
     write_to_json(USERS, USERS_json_path)
 
+def load_SUSPENDED_USERS_from_json(SUSPENDED_USERS_json_path):
+    '''
+    Populates global variable TWEETS when the script is starting.
+    '''
+    global SUSPENDED_USERS
+    SUSPENDED_USERS = read_from_json(SUSPENDED_USERS_json_path)
+
+def save_SUSPENDED_USERS_to_json(SUSPENDED_USERS_json_path):
+    global SUSPENDED_USERS
+    write_to_json(SUSPENDED_USERS, SUSPENDED_USERS_json_path)
+
 def populate_USERS_from_TWEETS():
     '''
     Takes TWEETS, gets all users from there,
@@ -114,7 +128,6 @@ def populate_USERS_from_TWEETS():
     for u in users:
         d = get_user(u)
         USERS[u] = d
-
 
 def tweet_to_dict(t, fill_with_nan=False):
     '''
@@ -205,7 +218,6 @@ def user_to_dict(user_status, fill_with_nan=False):
     Converts a Twitter API tweet object to a python dictionary
     with the tweet id as key. This version returns jsonable entries.
     '''
-
     d = {}
     t = user_status
 
@@ -218,8 +230,8 @@ def user_to_dict(user_status, fill_with_nan=False):
             ]
 
         for k in keys:
-            d[k] = np.nan
-            d['bio'] = '======= User not found or suspended. No data avaiable! ======='
+            d[k] = t['id_str']
+            d['bio'] = '======= User suspended or identified as bot and banned. No data avaiable! ======='
         return d
 
 
@@ -246,6 +258,11 @@ def get_USERS():
     global USERS
     return USERS
 
+def get_SUSPENDED_USERS():
+    global SUSPENDED_USERS
+    return SUSPENDED_USERS
+
+
 
 
 
@@ -264,6 +281,9 @@ def query_API_for_tweet_obj(_id):
 
     # Catch error of suspended twitter users
     except TweepError as e:
+
+        print('BBBBBBBB')
+        print('Error:', e['code'])
         print(f'\nUser suspended! (Tweet {_id})\n')
         print('\nError description:\n', e)
         return tweet_to_dict(None, fill_with_nan=True)
@@ -279,11 +299,35 @@ def query_API_for_user_obj(user_id):
         USERS[user_id] = result
         return result
 
-    # Catch error of suspended twitter users
+    # Catch error of suspended twitter users & invalid ids
     except TweepError as e:
-        print(f'\nID wrong or user suspended! (ID {_id})')
-        print('\nError description:\n', e)
-        return user_to_dict(None, fill_with_nan=True)
+        func_name = inspect.currentframe().f_code.co_name
+        e_dict = e.args[0][0]
+
+        # If invalid id, return None
+        if e_dict['code'] == 50:
+            print('Invalid user ID!')
+            print(f'{func_name}():', e_dict['message'])
+
+        # Else return dict with nan as values, and add to USERS dict
+        else:
+            print(f'{func_name}():', e_dict['message'])
+            new_user = user_to_dict({'id_str': user_id}, fill_with_nan=True)
+            USERS[user_id] = new_user
+            return new_user
+
+def query_client_for_tweet_data(tweet_id):
+    '''
+    This function uses API v2, maybe faster?
+    Returns Twitter api.Client response for tweet or list of tweets.
+    '''
+    response = client.get_tweets(
+        ids=[tweet_id],
+        tweet_fields=["public_metrics"],
+        expansions=["attachments.media_keys"],
+        media_fields=["public_metrics"]
+        )
+    return response.data[0]
 
 def get_tweet(tweet_id):
     '''
@@ -300,6 +344,7 @@ def get_tweet(tweet_id):
 
     # if not in there, query Twitter API
     else:
+        print('DDDDDDDDDD')
         print(f'Had to query API for Tweet ID {tweet_id}')
         return query_API_for_tweet_obj(tweet_id)
 
@@ -312,18 +357,15 @@ def get_user(user_id):
     '''
     global USERS
 
-    if user_id == np.nan:
-
-
     # try downloaded tweets first
     if USERS != {} and user_id in USERS:
         return USERS[user_id]
 
     # if not in there, query Twitter API
     else:
+        print('CCCCCCCCC')
         print(f'Had to query API for User ID {user_id}')
         return query_API_for_user_obj(user_id)
-
 
 
 
@@ -344,9 +386,28 @@ def get_retweet_count(_id):
         else:
             return int(result)
 
-def get_n_quotes(_id):
-    print('\nFunction not done yet!')
-    pass
+def get_engagement(tweet_id):
+    '''
+    Queries Twitter api.Client (API v2) for a tweet id,
+    returns a dict of these engagement metrics:
+    quote count, retweet count, reply count, like count
+    '''
+    tweet_data = query_client_for_tweet_data(tweet_id)
+    return tweet_data.public_metrics
+
+def get_retr_repl_likes_quotes_count(tweet_id):
+    '''
+    Queries Twitter api.Client (API v2), returns tuple of
+    engagement counts (retweets, replies, likes, quotes).
+    '''
+    d = get_engagement(tweet_id)
+    out_tup = (
+        d['retweet_count'],
+        d['reply_count'],
+        d['like_count'],
+        d['quote_count']
+    )
+    return out_tup
 
 def get_n_likes(tweet_id):
     return get_tweet(tweet_id)['favorite_count']
@@ -431,8 +492,8 @@ def orig_quote_or_rt(tweet_id):
 
 
 # Populate memo variables with past known jediswap tweets (TWEETS) and their users
-load_TWEETS_from_json(TWEETS_json_path)
-load_USERS_from_json(USERS_json_path)
+#load_TWEETS_from_json(TWEETS_json_path)
+#load_USERS_from_json(USERS_json_path)
 
 
 #At the end, save TWEETS to json file
