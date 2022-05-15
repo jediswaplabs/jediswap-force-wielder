@@ -2,8 +2,8 @@ import os, inspect, json, tweepy
 from dotenv import load_dotenv
 
 # TWEETS contains all tweets containing {keyword} from last 7 days
-#TWEETS = {}
-#USERS = {}
+TWEETS = {}
+USERS = {}
 SUSPENDED_USERS = set()
 TWEETS_json_path = './TWEETS_jediswap.json'
 USERS_json_path = './USERS_jediswap.json'
