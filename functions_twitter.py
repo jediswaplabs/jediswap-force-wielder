@@ -7,7 +7,7 @@ USERS = {}
 SUSPENDED_USERS = set()
 TWEETS_json_path = './TWEETS_jediswap.json'
 USERS_json_path = './USERS_jediswap.json'
-USERS_json_path = './SUSPENDED_USERS_jediswap.json'
+SUSPENDED_USERS_json_path = './SUSPENDED_USERS_jediswap.json'
 
 keyword = 'jediswap'
 max_tweets = 2000
@@ -487,13 +487,14 @@ def orig_quote_or_rt(tweet_id):
         return 'original'
 
 
-# Uncomment if there is not TWEETS json file yet
+# Uncomment if there is no TWEETS json file yet
 #TWEETS = get_tweets(keyword, max_tweets)
 
 
 # Populate memo variables with past known jediswap tweets (TWEETS) and their users
-#load_TWEETS_from_json(TWEETS_json_path)
-#load_USERS_from_json(USERS_json_path)
+load_TWEETS_from_json(TWEETS_json_path)
+load_USERS_from_json(USERS_json_path)
+load_SUSPENDED_USERS_from_json(SUSPENDED_USERS_json_path)
 
 
 #At the end, save TWEETS to json file
