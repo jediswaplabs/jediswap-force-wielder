@@ -2,8 +2,8 @@ import os, inspect, json, tweepy
 from dotenv import load_dotenv
 
 # TWEETS contains all tweets containing {keyword} from last 7 days
-#TWEETS = {}
-#USERS = {}
+TWEETS = {}
+USERS = {}
 SUSPENDED_USERS = set()
 TWEETS_json_path = './TWEETS_jediswap.json'
 USERS_json_path = './USERS_jediswap.json'
@@ -250,6 +250,11 @@ def user_to_dict(user_status, fill_with_nan=False):
 
     return d
 
+
+
+
+###  getter functions
+
 def get_TWEETS():
     global TWEETS
     return TWEETS
@@ -262,11 +267,6 @@ def get_SUSPENDED_USERS():
     global SUSPENDED_USERS
     return SUSPENDED_USERS
 
-
-
-
-
-###  getter functions
 
 def query_API_for_tweet_obj(_id):
     global TWEETS
