@@ -3,6 +3,7 @@
 *.csv
 *.tsv
 *.json
+.env_backup
 
 # OS files
 .DS_Store

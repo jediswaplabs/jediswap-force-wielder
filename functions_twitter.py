@@ -1,3 +1,5 @@
+# functions_twitter.py
+
 import os, inspect, json, tweepy
 from dotenv import load_dotenv
 
@@ -5,6 +7,7 @@ from dotenv import load_dotenv
 TWEETS = {}
 USERS = {}
 SUSPENDED_USERS = set()
+UNAVAILABLE_TWEETS = set()
 TWEETS_json_path = './TWEETS_jediswap.json'
 USERS_json_path = './USERS_jediswap.json'
 SUSPENDED_USERS_json_path = './SUSPENDED_USERS_jediswap.json'
@@ -19,8 +22,8 @@ b_t, c_k, c_s, a_t, a_s = (
     os.environ['TW_BEARER_TOKEN'],
     os.environ['TW_CONSUMER_KEY'],
     os.environ['TW_CONSUMER_SECRET'],
-    os.environ['TW_CONSUMER_KEY'],
-    os.environ['TW_CONSUMER_KEY']
+    os.environ['TW_ACCESS_TOKEN'],
+    os.environ['TW_ACCESS_SECRET']
     )
 auth = tweepy.OAuthHandler(c_k, c_s)
 auth.set_access_token(a_t, a_s)
@@ -46,6 +49,21 @@ def write_to_json(_dict, path):
     '''
     with open(path, 'w') as jfile:
         json_object = json.dump(_dict, jfile, indent=1)
+
+def write_list_to_json(_list, path):
+    '''
+    Writes list to json file located in path variable.
+    '''
+    json_str = json.dumps(_list)
+    with open(path, 'w') as jfile:
+        json.dump(json_str, jfile)
+
+def read_list_from_json(json_path):
+    '''
+    Reads json, returns list with contents of json file
+    '''
+    with open(json_path, 'r') as jfile:
+        return json.loads(json.loads(jfile.read()))
 
 def get_tweets(keyw, max_amount):
     '''
@@ -102,16 +120,17 @@ def save_USERS_to_json(USERS_json_path):
     global USERS
     write_to_json(USERS, USERS_json_path)
 
-def load_SUSPENDED_USERS_from_json(SUSPENDED_USERS_json_path):
+def load_SUSPENDED_USERS_from_json(path=SUSPENDED_USERS_json_path):
     '''
     Populates global variable TWEETS when the script is starting.
     '''
     global SUSPENDED_USERS
-    SUSPENDED_USERS = read_from_json(SUSPENDED_USERS_json_path)
+    SUSPENDED_USERS = set(read_list_from_json(path))
 
-def save_SUSPENDED_USERS_to_json(SUSPENDED_USERS_json_path):
+def save_SUSPENDED_USERS_to_json(path=SUSPENDED_USERS_json_path):
     global SUSPENDED_USERS
-    write_to_json(SUSPENDED_USERS, SUSPENDED_USERS_json_path)
+
+    write_list_to_json(list(SUSPENDED_USERS), path)
 
 def populate_USERS_from_TWEETS():
     '''
@@ -133,6 +152,8 @@ def tweet_to_dict(t, fill_with_nan=False):
     '''
     Converts a Twitter API tweet object to a python dictionary
     with the tweet id as key. This version returns jsonable entries.
+    In case of querying error outside this scope, the first arg is assumed to be
+    the tweet id.
     '''
     d = {}
 
@@ -145,6 +166,7 @@ def tweet_to_dict(t, fill_with_nan=False):
             ]
         for k in keys:
             d[k] = np.nan
+            d['id'] = t    # id is taken from first arg in case of a querying error!
             d['text'] = '======= User suspended: No data avaiable! ======='
         return d
 
@@ -250,6 +272,14 @@ def user_to_dict(user_status, fill_with_nan=False):
 
     return d
 
+def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path,
+                 su_p=SUSPENDED_USERS_json_path):
+    global TWEETS
+    global USERS
+    global SUSPENDED_USERS
+    write_to_json(TWEETS, tw_p)
+    write_to_json(USERS, u_p)
+    write_to_json(SUSPENDED_USERS, su_p)
 
 
 
@@ -270,8 +300,16 @@ def get_SUSPENDED_USERS():
 
 def query_API_for_tweet_obj(_id):
     global TWEETS
-    TweepError = tweepy.error.TweepError
+    global SUSPENDED_USERS
+    global UNAVAILABLE_TWEETS
 
+    # Case: User flagged as suspended this session. Don't query APi
+    if _id in SUSPENDED_USERS:
+        print('Found in SUSPENDED_USERS set')
+        return tweet_to_dict(_id, fill_with_nan=True)
+
+    TweepyException = tweepy.errors.TweepyException
+    # If not suspended, try querying API for tweet data
     try:
         tweet_obj = api.get_status(_id)
         jsonized = tweet_obj._json
@@ -279,18 +317,37 @@ def query_API_for_tweet_obj(_id):
         TWEETS[_id] = result
         return result
 
-    # Catch error of suspended twitter users
-    except TweepError as e:
+    # if not available, return dataset filled with nans
+    except TweepyException as e:
 
-        print('BBBBBBBB')
-        print('Error:', e['code'])
-        print(f'\nUser suspended! (Tweet {_id})\n')
-        print('\nError description:\n', e)
-        return tweet_to_dict(None, fill_with_nan=True)
+        print('\nCaught an exception for this one:')
+
+        if isinstance(e, tweepy.errors.NotFound):
+            print(f'No data available for tweet id {_id}')
+            print('Tweet older than 1 week?')
+            UNAVAILABLE_TWEETS.add(_id)
+
+        elif isinstance(e, tweepy.errors.Forbidden):
+            print('Tweet id:', _id)
+            print('User suspended, no tweets available.')
+            print('Error description:\n', e)
+            SUSPENDED_USERS.add(_id)
+
+            return tweet_to_dict(_id, fill_with_nan=True)
+
+        else:
+#            print(f'\nUser suspended! (Tweet {_id})\n')
+            print(f'Caught error for id {_id}')
+            print(type(e))
+            print('\nError description:\n', e)
+            return tweet_to_dict(_id, fill_with_nan=True)
+
+
+
 
 def query_API_for_user_obj(user_id):
     global USERS
-    TweepError = tweepy.error.TweepError
+    TweepyException = tweepy.errors.TweepyException
 
     try:
         user_obj = api.get_user(user_id)
@@ -300,7 +357,7 @@ def query_API_for_user_obj(user_id):
         return result
 
     # Catch error of suspended twitter users & invalid ids
-    except TweepError as e:
+    except TweepyException as e:
         func_name = inspect.currentframe().f_code.co_name
         e_dict = e.args[0][0]
 
@@ -372,7 +429,10 @@ def get_user(user_id):
 ### tweet-related
 
 def get_text(tweet_id):
-    return get_tweet(tweet_id)['text']
+    try:
+        return get_tweet(tweet_id)['text']
+    except TypeError:
+        return np.nan
 
 def get_retweet_count(_id):
     result = 0
@@ -479,15 +539,18 @@ def get_user_bio(tweet_id):
     return get_user_dict['descripton']
 
 def orig_quote_or_rt(tweet_id):
-    if get_text(tweet_id).startswith('RT'):
-        return 'retweet'
-    elif get_text(tweet_id).startswith('@'):
-        return 'quote'
-    else:
-        return 'original'
+    try:
+        if get_text(tweet_id).startswith('RT'):
+            return 'retweet'
+        elif get_text(tweet_id).startswith('@'):
+            return 'quote'
+        else:
+            return 'original'
+    # Case: User suspended, no tweet data available anymore
+    except AttributeError:
+        return np.nan
 
-
-# Uncomment if there is no TWEETS json file yet
+# Uncomment if there is no TWEETS json file yet (if running for first time i.e.)
 #TWEETS = get_tweets(keyword, max_tweets)
 
 
@@ -495,7 +558,3 @@ def orig_quote_or_rt(tweet_id):
 load_TWEETS_from_json(TWEETS_json_path)
 load_USERS_from_json(USERS_json_path)
 load_SUSPENDED_USERS_from_json(SUSPENDED_USERS_json_path)
-
-
-#At the end, save TWEETS to json file
-#save_TWEETS_to_json()
