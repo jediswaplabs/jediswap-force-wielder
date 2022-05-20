@@ -1,4 +1,4 @@
-# functions_twitter.py
+
 
 import os, inspect, json, tweepy
 from dotenv import load_dotenv
@@ -11,6 +11,9 @@ UNAVAILABLE_TWEETS = set()
 TWEETS_json_path = './TWEETS_jediswap.json'
 USERS_json_path = './USERS_jediswap.json'
 SUSPENDED_USERS_json_path = './SUSPENDED_USERS_jediswap.json'
+FOUND_IN_TWEETS = 0
+HAD_TO_QUERY_TWEETS = 0
+HAD_TO_QUERY_USERS = 0
 
 keyword = 'jediswap'
 max_tweets = 2000
@@ -31,8 +34,13 @@ api = tweepy.API(auth)
 client = tweepy.Client(b_t, c_k, c_s, a_t, a_s)
 
 
-
 ###  batch API querying / file processing
+
+def prettyprint(dict_, keys_label='metric', values_label='User ID'):
+    print('\n{:^35} | {:^6}'.format(keys_label, values_label))
+    print('-'*65)
+    for k,v in dict_.items():
+        print("{:35} | {:<20}".format(k,v))
 
 def read_from_json(json_path):
     '''
@@ -252,7 +260,9 @@ def user_to_dict(user_status, fill_with_nan=False):
             ]
 
         for k in keys:
-            d[k] = t['id_str']
+            d[k] = np.nan
+            d['id'] = t    # id is taken from first arg in case of a querying error!
+            d['suspended'] = True
             d['bio'] = '======= User suspended or identified as bot and banned. No data avaiable! ======='
         return d
 
@@ -276,10 +286,8 @@ def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path,
                  su_p=SUSPENDED_USERS_json_path):
     global TWEETS
     global USERS
-    global SUSPENDED_USERS
     write_to_json(TWEETS, tw_p)
     write_to_json(USERS, u_p)
-    write_to_json(SUSPENDED_USERS, su_p)
 
 
 
@@ -297,81 +305,112 @@ def get_SUSPENDED_USERS():
     global SUSPENDED_USERS
     return SUSPENDED_USERS
 
-
 def query_API_for_tweet_obj(_id):
     global TWEETS
-    global SUSPENDED_USERS
     global UNAVAILABLE_TWEETS
+    global HAD_TO_QUERY_TWEETS
 
-    # Case: User flagged as suspended this session. Don't query APi
-    if _id in SUSPENDED_USERS:
-        print('Found in SUSPENDED_USERS set')
+    # Case: Tweet flagged as by suspended user this session. Don't query API
+    if _id in UNAVAILABLE_TWEETS:
+        print(f'Found {_id} in UNAVAILABLE_TWEETS set')
         return tweet_to_dict(_id, fill_with_nan=True)
 
     TweepyException = tweepy.errors.TweepyException
     # If not suspended, try querying API for tweet data
+    print(f'\nHad to query API for Tweet {_id}')
     try:
         tweet_obj = api.get_status(_id)
         jsonized = tweet_obj._json
         result = tweet_to_dict(jsonized)
         TWEETS[_id] = result
+        HAD_TO_QUERY_TWEETS += 1
         return result
 
     # if not available, return dataset filled with nans
     except TweepyException as e:
 
-        print('\nCaught an exception for this one:')
+        print('Caught an exception for this one:')
 
         if isinstance(e, tweepy.errors.NotFound):
             print(f'No data available for tweet id {_id}')
             print('Tweet older than 1 week?')
             UNAVAILABLE_TWEETS.add(_id)
+            print(f'{_id} added to UNAVAILABLE_TWEETS')
+            return tweet_to_dict(_id, fill_with_nan=True)
 
         elif isinstance(e, tweepy.errors.Forbidden):
             print('Tweet id:', _id)
             print('User suspended, no tweets available.')
             print('Error description:\n', e)
-            SUSPENDED_USERS.add(_id)
-
+            UNAVAILABLE_TWEETS.add(_id)
+            print(f'{_id} added to UNAVAILABLE_TWEETS')
             return tweet_to_dict(_id, fill_with_nan=True)
 
         else:
-#            print(f'\nUser suspended! (Tweet {_id})\n')
-            print(f'Caught error for id {_id}')
+            print(f'Caught an unhandled error for id {_id}')
             print(type(e))
             print('\nError description:\n', e)
             return tweet_to_dict(_id, fill_with_nan=True)
 
 
 
-
 def query_API_for_user_obj(user_id):
     global USERS
+    global SUSPENDED_USERS
+    global HAD_TO_QUERY_USERS
+
+    # Case: User flagged as by suspended user this session. Don't query API, return dummy dict with nans
+    if user_id in SUSPENDED_USERS:
+        print(f'Found {user_id} in SUSPENDED_USERS set')
+        return user_to_dict({'id_str': user_id}, fill_with_nan=True)
+
     TweepyException = tweepy.errors.TweepyException
 
+    # If not suspended, try querying API for tweet data
+    print(f'\nHad to query API for User {user_id}')
     try:
-        user_obj = api.get_user(user_id)
+        user_obj = api.get_user(user_id=user_id)
         jsonized = user_obj._json
         result = user_to_dict(jsonized)
         USERS[user_id] = result
+        HAD_TO_QUERY_USERS += 1
         return result
+    # if not available, return dataset filled with nans
 
-    # Catch error of suspended twitter users & invalid ids
     except TweepyException as e:
         func_name = inspect.currentframe().f_code.co_name
-        e_dict = e.args[0][0]
+        print(f'Caught an unhandled error for user: {user_id}')
+        print(type(e))
+        print('\nError description:\n', e)
+        return user_to_dict(user_id, fill_with_nan=True)
 
-        # If invalid id, return None
-        if e_dict['code'] == 50:
-            print('Invalid user ID!')
-            print(f'{func_name}():', e_dict['message'])
+#    # Catch error of suspended twitter users & invalid ids
+#    except TweepyException as e:
+#        func_name = inspect.currentframe().f_code.co_name
+#        e_dict = e.args[0][0]
 
-        # Else return dict with nan as values, and add to USERS dict
-        else:
-            print(f'{func_name}():', e_dict['message'])
-            new_user = user_to_dict({'id_str': user_id}, fill_with_nan=True)
-            USERS[user_id] = new_user
-            return new_user
+#        # If invalid id, return None
+#        if e_dict['code'] == 50:
+#            print('Invalid user ID!')
+#            print(f'{func_name}():', e_dict['message'])
+
+#        # Else return dict with nan as values, and add to USERS dict
+#        else:
+#            print(f'{func_name}():', e_dict['message'])
+#            new_user = user_to_dict({'id_str': user_id}, fill_with_nan=True)
+#            USERS[user_id] = new_user
+#            return new_user
+
+
+
+
+
+
+
+
+
+
+
 
 def query_client_for_tweet_data(tweet_id):
     '''
@@ -394,32 +433,39 @@ def get_tweet(tweet_id):
     tweet metadata.
     '''
     global TWEETS
+    global FOUND_IN_TWEETS
 
     # try downloaded tweets first
     if TWEETS != {} and tweet_id in TWEETS:
+        FOUND_IN_TWEETS += 1
         return TWEETS[tweet_id]
 
     # if not in there, query Twitter API
     else:
         print('DDDDDDDDDD')
-        print(f'Had to query API for Tweet ID {tweet_id}')
         return query_API_for_tweet_obj(tweet_id)
 
 def get_user(user_id):
     '''
     Wrapper to save on API queries per minute:
     Checks local json object containing users first for a user id.
-    If it's not in there, queries twitter API. Returns available
-    tweet metadata.
+    If it's not in there, queries twitter API. Returns user
+    object.
     '''
     global USERS
 
+    def cond_log(msg):
+        if user_id == None:
+            print(msg)
+
     # try downloaded tweets first
     if USERS != {} and user_id in USERS:
+        cond_log(f'trying to get user id {user_id} from USERS dict...')
         return USERS[user_id]
 
     # if not in there, query Twitter API
     else:
+        cond_log(f'calling query_API_for_user_obj(user_id) with user id {user_id}...')
         print('CCCCCCCCC')
         print(f'Had to query API for User ID {user_id}')
         return query_API_for_user_obj(user_id)
@@ -516,7 +562,6 @@ def get_n_tweets(user_id):
 def get_last_tweet(user_id):
     return get_user(user_id)['most_recent_tweet']
 
-
 def get_followers_count(user_id=None, tweet_id=None):
     if user_id:
         return get_user(user_id)['followers_count']
@@ -557,4 +602,4 @@ def orig_quote_or_rt(tweet_id):
 # Populate memo variables with past known jediswap tweets (TWEETS) and their users
 load_TWEETS_from_json(TWEETS_json_path)
 load_USERS_from_json(USERS_json_path)
-load_SUSPENDED_USERS_from_json(SUSPENDED_USERS_json_path)
+#load_SUSPENDED_USERS_from_json(SUSPENDED_USERS_json_path)
