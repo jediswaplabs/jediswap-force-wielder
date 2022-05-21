@@ -14,6 +14,9 @@ SUSPENDED_USERS_json_path = './SUSPENDED_USERS_jediswap.json'
 FOUND_IN_TWEETS = 0
 HAD_TO_QUERY_TWEETS = 0
 HAD_TO_QUERY_USERS = 0
+HAD_TO_QUERY_CLIENT_FOR_TWEETS = 0
+engagement_dict_path = './DEBUG_engagement_dict.json'
+
 
 keyword = 'jediswap'
 max_tweets = 2000
@@ -391,34 +394,9 @@ def query_API_for_user_obj(user_id):
         print(f'Caught an unhandled error for user: {user_id}')
         print(type(e))
         print('\nError description:\n', e)
+        SUSPENDED_USERS.add(user_id)
+        print('Added user to SUSPENDED_USERS')
         return user_to_dict(user_id, fill_with_nan=True)
-
-#    # Catch error of suspended twitter users & invalid ids
-#    except TweepyException as e:
-#        func_name = inspect.currentframe().f_code.co_name
-#        e_dict = e.args[0][0]
-
-#        # If invalid id, return None
-#        if e_dict['code'] == 50:
-#            print('Invalid user ID!')
-#            print(f'{func_name}():', e_dict['message'])
-
-#        # Else return dict with nan as values, and add to USERS dict
-#        else:
-#            print(f'{func_name}():', e_dict['message'])
-#            new_user = user_to_dict({'id_str': user_id}, fill_with_nan=True)
-#            USERS[user_id] = new_user
-#            return new_user
-
-
-
-
-
-
-
-
-
-
 
 
 def query_client_for_tweet_data(tweet_id):
@@ -429,6 +407,7 @@ def query_client_for_tweet_data(tweet_id):
     Also prints error message if querying the client goes wrong in any way.
     '''
     global UNAVAILABLE_TWEETS
+    global HAD_TO_QUERY_CLIENT_FOR_TWEETS
 
     # Case: Tweet doesn't exist anymore
     if tweet_id in UNAVAILABLE_TWEETS:
@@ -441,6 +420,7 @@ def query_client_for_tweet_data(tweet_id):
         expansions=["attachments.media_keys"],
         media_fields=["public_metrics"]
         )
+    HAD_TO_QUERY_CLIENT_FOR_TWEETS += 1
 
     # Case: Tweet found. Return tweet data
     if response.errors == []:
@@ -533,23 +513,49 @@ def get_engagement(tweet_id):
     quote count, retweet count, reply count, like count
     '''
     tweet_data = query_client_for_tweet_data(tweet_id)
-    return tweet_data.public_metrics
+    if tweet_data is None:
+        return None
+    else:
+        return tweet_data.public_metrics
 
-def get_retr_repl_likes_quotes_count(tweet_id):
+def get_retr_repl_likes_quotes_count(tweet_id, memo_path=engagement_dict_path):
     '''
     Queries Twitter api.Client (API v2), returns tuple of
     engagement counts (retweets, replies, likes, quotes).
+    Returns tuple of np.nan's if tweet doesn't exist anymore.
     '''
-    d = get_engagement(tweet_id)
-    out_tup = (
-        d['retweet_count'],
-        d['reply_count'],
-        d['like_count'],
-        d['quote_count']
-    )
+    memo_d = {}
+
+    # Querying the client will fail after ~150 requests. That's why a json file is used as memo storage
+    if memo_path is not None:
+        memo_d = read_from_json(memo_path)
+
+    # Case: Tweet engagement is stored in local json file. Read from there.
+    if tweet_id in memo_d:
+        p = memo_path.strip('./')
+        print(f'Found {tweet_id} in {p}.')
+        return tuple(memo_d[tweet_id])
+
+    # Case: Tweet is not contained in json: Query Twitter client (max ~150 queries per 15 min.)
+    else:
+        d = get_engagement(tweet_id)
+        p = memo_path.strip('./')
+        print(f'Couldn\'t find {tweet_id} in {p}. Queried client instead')
+
+    # Case: Tweet doesn't exist anymore. Return tuple of nan's
+    if d is None:
+        out_tup = (np.nan, np.nan, np.nan, np.nan)
+
+    else:
+        print('d:', d)
+        out_tup = (
+            d['retweet_count'],
+            d['reply_count'],
+            d['like_count'],
+            d['quote_count']
+        )
+
     return out_tup
-
-
 
 def get_n_likes(tweet_id):
     return get_tweet(tweet_id)['favorite_count']
