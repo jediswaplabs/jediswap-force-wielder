@@ -1,5 +1,3 @@
-# functions_twitter.py
-
 import os, inspect, json, tweepy
 from dotenv import load_dotenv
 
@@ -47,6 +45,10 @@ client = tweepy.Client(
 
 
 ###  batch API querying / file processing
+
+def obvious_print(msg):
+    out_str = '\n' + '='*75 + '\n\t' + msg + '\n' + '='*75 + '\n'
+    print(out_str)
 
 def prettyprint(dict_, keys_label='metric', values_label='User ID'):
     print('\n{:^35} | {:^6}'.format(keys_label, values_label))
@@ -525,6 +527,11 @@ def get_retr_repl_likes_quotes_count(tweet_id, memo_path=engagement_dict_path):
     Returns tuple of np.nan's if tweet doesn't exist anymore.
     '''
     memo_d = {}
+    global UNAVAILABLE_TWEETS
+
+    # Case: Tweet is from suspended user. Return tuple of nan's
+    if tweet_id in UNAVAILABLE_TWEETS:
+        return (np.nan, np.nan, np.nan, np.nan)
 
     # Querying the client will fail after ~150 requests. That's why a json file is used as memo storage
     if memo_path is not None:

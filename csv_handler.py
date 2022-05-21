@@ -1,4 +1,3 @@
-# csv_handler.py
 '''
 This file encapsulates file and data handling.
 '''
@@ -11,7 +10,16 @@ from functions_twitter import *
 
 
 
-
+def apply_and_concat(dataframe, field, func, column_names):
+    '''
+    Helper function. Applies a function returning a tuple to a specified
+    input field and adds the result as new columns to the df. The elements
+    of the tuple are attached as new columns, labled as spec_ed in column_names.
+    '''
+    return pd.concat((
+        dataframe,
+        dataframe[field].apply(
+            lambda cell: pd.Series(func(cell), index=column_names))), axis=1)
 
 def load_csv(in_csv, sep=','):
     '''
@@ -27,7 +35,6 @@ def load_csv(in_csv, sep=','):
         'Submit a Link to your tweet, video or article': 'Link'
         })
     return data
-
 
 def fill_missing_data(df):
     '''
@@ -96,14 +103,40 @@ def fill_missing_data(df):
     df['Followers'] = df['User ID'].apply(get_followers_count)
 
     # Add column: number of retweets for submitted tweet
-    print('\nQuerying for retweet count and adding as new column (get_retweet_count())...')
-    df['Retweets'] = df['Tweet ID'].apply(get_retweet_count)
+#    print('\nQuerying for retweet count and adding as new column (get_retweet_count())...')
+#    df['Retweets'] = df['Tweet ID'].apply(get_retweet_count)
+    df.rename(columns = {'Retweets':'RTs_orig'}, inplace = True)
 
     # Drop duplicates (entries pointing to the same tweet)
     print('\nDropping rows containing the same Tweet ID...')
     df = df.drop_duplicates('Tweet ID')
 
+    # Add columns: retweets, tweet replies, tweet likes, tweet replies
+    # Adds (np.nan if tweet no longer exists!)
+    new_cols = ['Retweets', 'Replies', 'Likes', 'Quotes']
+    df = apply_and_concat(df, 'Tweet ID', get_retr_repl_likes_quotes_count, new_cols)
+
+    # Remove rows pointing to deleted tweets or suspended users (Tweet ID in UNAVAILABLE_TWEETS)
+    suspended = df['Tweet ID'].isin(UNAVAILABLE_TWEETS)
+#    not_found_by_client = df['Retweets'].isnull()
+
+    suspended_df = df[suspended]
+    suspended_users = suspended_df['User'].values.tolist()
+    print('''
+    These users have been dropped from the data, because
+    their jediswap-related tweet is no longer available
+    or they have been suspended from Twitter altogether:
+    ''')
+    [print('\t'+x) for x in suspended_users]
+    df = df[~suspended]
+
+    # Convert values of some columns from float to int
+    to_convert = ['Retweets', 'Replies', 'Likes', 'Quotes']
+    df[to_convert] = df[to_convert].astype(int)
+
     return df
+
+
 
 
 def save_csv(df, out_path, sort_by='User'):
@@ -111,11 +144,13 @@ def save_csv(df, out_path, sort_by='User'):
     Saves DataFrame with specified column and row order to disk.
     '''
     cols = [
-        'Tweet ID', 'User', 'Followers', 'Retweets', 'Status', 'Follower Points',
-        'Retweet Points', 'Tweet Preview'
+        'Tweet ID', 'User', 'Followers', 'Retweets', 'Replies', 'Likes', 'Quotes',
+        'Status', 'Follower Points', 'Retweet Points', 'Tweet Preview', 'Comments'
         ]
+
+
     out_df = df[cols]
     out_df.rename(columns={'Tweet Content':'Tweet Preview'}, inplace=True)  # was commented out!
-    out_df = out_df.sort_values(col, ascending=False)
+    out_df = out_df.sort_values(sort_by, ascending=False)
     out_df.to_csv(out_path, index=False)
     return out_df
