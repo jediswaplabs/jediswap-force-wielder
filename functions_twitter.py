@@ -1,4 +1,4 @@
-
+# functions_twitter.py
 
 import os, inspect, json, tweepy
 from dotenv import load_dotenv
@@ -31,7 +31,16 @@ b_t, c_k, c_s, a_t, a_s = (
 auth = tweepy.OAuthHandler(c_k, c_s)
 auth.set_access_token(a_t, a_s)
 api = tweepy.API(auth)
-client = tweepy.Client(b_t, c_k, c_s, a_t, a_s)
+
+
+# Instantiate Twitter Client
+client = tweepy.Client(
+    bearer_token=os.environ['CLIENT_BEARER_TOKEN'],
+    consumer_key=os.environ['CLIENT_API_ACCESS_TOKEN'],
+    consumer_secret=os.environ['CLIENT_API_ACCESS_TOKEN_SECRET'],
+    access_token=os.environ['OAUTH_CLIENT_ID'],
+    access_token_secret=os.environ['OAUTH2_CLIENT_SECRET']
+)
 
 
 ###  batch API querying / file processing
@@ -416,14 +425,39 @@ def query_client_for_tweet_data(tweet_id):
     '''
     This function uses API v2, maybe faster?
     Returns Twitter api.Client response for tweet or list of tweets.
+    Returns None if tweet doesn't exist anymore.
+    Also prints error message if querying the client goes wrong in any way.
     '''
+    global UNAVAILABLE_TWEETS
+
+    # Case: Tweet doesn't exist anymore
+    if tweet_id in UNAVAILABLE_TWEETS:
+        print(f'Tweet {tweet_id} found in UNAVAILABLE_TWEETS. Not querying.')
+        return None
+
     response = client.get_tweets(
         ids=[tweet_id],
         tweet_fields=["public_metrics"],
         expansions=["attachments.media_keys"],
         media_fields=["public_metrics"]
         )
-    return response.data[0]
+
+    # Case: Tweet found. Return tweet data
+    if response.errors == []:
+        return response.data[0]
+
+    # Case: Tweet not found or other error occurred
+    else:
+        func_name = inspect.currentframe().f_code.co_name
+        print(f'\n{func_name}(): Caught an error querying client for Tweet ID {tweet_id}.')
+        print('\nError:\n')
+        [print(x) for x in response.errors]
+        UNAVAILABLE_TWEETS.add(tweet_id)
+        print('\n\t---> tweet has been added to UNAVAILABLE_TWEETS')
+        return None
+
+
+
 
 def get_tweet(tweet_id):
     '''
@@ -514,6 +548,8 @@ def get_retr_repl_likes_quotes_count(tweet_id):
         d['quote_count']
     )
     return out_tup
+
+
 
 def get_n_likes(tweet_id):
     return get_tweet(tweet_id)['favorite_count']
