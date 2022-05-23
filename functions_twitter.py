@@ -1,3 +1,4 @@
+
 import os, inspect, json, tweepy
 from dotenv import load_dotenv
 
@@ -8,12 +9,14 @@ SUSPENDED_USERS = set()
 UNAVAILABLE_TWEETS = set()
 TWEETS_json_path = './TWEETS_jediswap.json'
 USERS_json_path = './USERS_jediswap.json'
+engagement_dict_path = './DEBUG_engagement_dict.json'
 SUSPENDED_USERS_json_path = './SUSPENDED_USERS_jediswap.json'
 FOUND_IN_TWEETS = 0
 HAD_TO_QUERY_TWEETS = 0
 HAD_TO_QUERY_USERS = 0
 HAD_TO_QUERY_CLIENT_FOR_TWEETS = 0
-engagement_dict_path = './DEBUG_engagement_dict.json'
+UNIVERSAL_MEMO = set()    # for use by functions  called like df.apply(). Is wiped before use each time.
+
 
 
 keyword = 'jediswap'
@@ -302,6 +305,7 @@ def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path,
     global USERS
     write_to_json(TWEETS, tw_p)
     write_to_json(USERS, u_p)
+    print(f'Updated {TWEETS_json_path.strip("./")} and {USERS_json_path.strip("./")}')
 
 
 
@@ -318,6 +322,14 @@ def get_USERS():
 def get_SUSPENDED_USERS():
     global SUSPENDED_USERS
     return SUSPENDED_USERS
+
+def get_UNIVERSAL_MEMO():
+    global UNIVERSAL_MEMO
+    return UNIVERSAL_MEMO
+
+def reset_UNIVERSAL_MEMO():
+    global UNIVERSAL_MEMO
+    UNIVERSAL_MEMO = set()
 
 def query_API_for_tweet_obj(_id):
     global TWEETS
@@ -366,8 +378,6 @@ def query_API_for_tweet_obj(_id):
             print('\nError description:\n', e)
             return tweet_to_dict(_id, fill_with_nan=True)
 
-
-
 def query_API_for_user_obj(user_id):
     global USERS
     global SUSPENDED_USERS
@@ -399,7 +409,6 @@ def query_API_for_user_obj(user_id):
         SUSPENDED_USERS.add(user_id)
         print('Added user to SUSPENDED_USERS')
         return user_to_dict(user_id, fill_with_nan=True)
-
 
 def query_client_for_tweet_data(tweet_id):
     '''
@@ -437,9 +446,6 @@ def query_client_for_tweet_data(tweet_id):
         UNAVAILABLE_TWEETS.add(tweet_id)
         print('\n\t---> tweet has been added to UNAVAILABLE_TWEETS')
         return None
-
-
-
 
 def get_tweet(tweet_id):
     '''
@@ -643,6 +649,42 @@ def orig_quote_or_rt(tweet_id):
     # Case: User suspended, no tweet data available anymore
     except AttributeError:
         return np.nan
+
+
+
+
+### pandas-related
+
+def check_for_nan(val):
+    if np.isnan(float(val)):
+        return True
+    else:
+        return ' '
+
+def tweet_points_formula(n_followers, n_retweets, duplicate, inval_link):
+    if (duplicate == True) or (inval_link == True):
+        return np.nan
+    retweet_bonus = 3.5 * n_retweets**(1/1.2)
+    tweet_points = 0.1 * n_followers **(1/1.6) + retweet_bonus
+    rounded = int(round(tweet_points)) if not np.isnan(tweet_points) else tweet_points
+    return rounded
+
+def follower_points_formula(n_followers, duplicate, inval_link):
+    if (duplicate == True) or (inval_link == True):
+        return np.nan
+    follower_points = 0.1 * n_followers **(1/1.6)
+    rounded = int(round(follower_points)) if not np.isnan(follower_points) else follower_points
+    return rounded
+
+def retweet_points_formula(n_retweets, duplicate, inval_link):
+    if (duplicate == True) or (inval_link == True):
+        return np.nan
+    retweet_points = 3.5 * n_retweets**(1/1.2)
+    rounded = int(round(retweet_points)) if not np.isnan(retweet_points) else retweet_points
+    return rounded
+
+
+
 
 # Uncomment if there is no TWEETS json file yet (if running for first time i.e.)
 #TWEETS = get_tweets(keyword, max_tweets)
