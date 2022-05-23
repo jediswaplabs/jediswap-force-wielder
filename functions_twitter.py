@@ -661,6 +661,21 @@ def check_for_nan(val):
     else:
         return ' '
 
+def flag_as_duplicate(_id):
+    '''
+    For use as df.apply() over a DataFrame sorted by timestamps.
+    Flags duplicate entries of a column as duplicates if a version
+    with an earlier version (according to timestamp) exists.
+    '''
+    global UNIVERSAL_MEMO
+    if _id not in UNIVERSAL_MEMO:
+        UNIVERSAL_MEMO.add(_id)
+        return ' '
+    elif np.isnan(float(_id)):
+        return ' '
+    else:
+        return True
+
 def tweet_points_formula(n_followers, n_retweets, duplicate, inval_link):
     if (duplicate == True) or (inval_link == True):
         return np.nan
