@@ -44,39 +44,36 @@ def fill_missing_data(df):
     # Load csv
     data = load_csv(in_csv, sep='\t')
     df = data.copy()
-
-    # Sort out doubles
-    print('\n\tSorting out doubles...')
-    df = df.drop_duplicates(subset='Link')
-
-    # Filter out submissions with invalid links
-    print('\n\tFiltering out invalid links...')
-    contains_status = df['Link'].str.contains('status')
-    contains_twitter = df['Link'].str.contains('twitter.com')
-    df = df[contains_status & contains_twitter]
+    print(df.shape)
 
     # Grab Tweet ID out of link and add as new column
     print('\n\tExtracting Tweet ID using regex...')
     df['Tweet ID'] = df['Link'].str.extract('(?<=status/)(\d{19})', expand=True)
+    print(df.shape)
+
+    # Flag invalid Twitter links (where no Tweet ID can be grabbed)
+    df['Invalid Twitter Link'] = df['Tweet ID'].apply(check_for_nan)
+
+    # Flag duplicate tweets as duplicates
+    reset_UNIVERSAL_MEMO()
+    df['Duplicate'] = df['Tweet ID'].apply(flag_as_duplicate)
+    reset_UNIVERSAL_MEMO()
+    print(df.shape)
+
+    # Set 'Red Flag' trigger if word 'airdrop' contained in tweet text
+    df['Red Flag'] = df['Tweet ID'].apply(set_red_flag)
 
     # Grab Twitter handle and add as new column
     print('\n\tExtracting Twitter handle using regex...')
     df['User'] = df['Link'].str.extract(
         '(?<=twitter\.com/)(.+?)(?=/status)', expand=True
         )
+    print(df.shape)
 
-    # Rearrange column order
-    print('\n\tRearranging column order...')
-    rearranged = [
-        'User', 'Tweet ID', 'Retweets', 'Views',
-        'Status', 'Comments', 'Follower Points',
-        'Retweet Points'
-        ]
-    df = df[rearranged]
-
-    # Add column: tweet type (str)
-    print('\n\tDetermining tweet type (original, quote, RT, or nan (suspended or too old))...')
-    df['Tweet Tpye'] = df['Tweet ID'].apply(orig_quote_or_rt)
+    # Add column: user id
+    print('\n\tQuerying for user ID and adding as new column (get_user_id())...')
+    df['User ID'] = df['Tweet ID'].apply(get_user_id)
+    print(df.shape)
 
     # Add column: tweet preview
     print('\n\tAdding column: Tweet preview...')
@@ -85,72 +82,112 @@ def fill_missing_data(df):
     df['Tweet Preview'] = df['Tweet ID'].apply(
         lambda column_name: get_preview(column_name, 40)
         )
+    print(df.shape)
 
-    # Add column: user id
-    print('\n\tQuerying for user ID and adding as new column (get_user_id())...')
-    df['User ID'] = df['Tweet ID'].apply(get_user_id)
-
-    # Remove suspended users (User ID nan triggered error in next block)
-    print('\n\tFiltering out suspended users (User ID = nan)...')
-    suspended = df.loc[df['User ID'].isnull()]
-    df = df.dropna(subset=['User ID'])
-    print('These users have been suspended by Twitter and have been filtered out:\n')
-    user_ids_d = suspended[['User', 'User ID']].set_index('User').to_dict()['User ID']
-    prettyprint(user_ids_d, 'Twitter Handle', 'User ID')
+    # Rearrange column order
+    print('\n\tRearranging column order...')
+    rearranged = [
+        'User', 'Link', 'Tweet ID', 'Retweets', 'Views', 'Duplicate', 'Invalid Twitter Link',
+        'Red Flag', 'Status', 'Comments', 'Tweet Preview', 'User ID'
+        ]
+    df = df[rearranged]
+    print(df.shape)
 
     # Add column: n_followers per user
     print('\nQuerying for follower count and adding as new column (get_followers_count())...')
+    print(df.head(2))
     df['Followers'] = df['User ID'].apply(get_followers_count)
-
-    # Add column: number of retweets for submitted tweet
-#    print('\nQuerying for retweet count and adding as new column (get_retweet_count())...')
-#    df['Retweets'] = df['Tweet ID'].apply(get_retweet_count)
-    df.rename(columns = {'Retweets':'RTs_orig'}, inplace = True)
-
-    # Drop duplicates (entries pointing to the same tweet)
-    print('\nDropping rows containing the same Tweet ID...')
-    df = df.drop_duplicates('Tweet ID')
+    print(df.shape)
 
     # Add columns: retweets, tweet replies, tweet likes, tweet replies
     # Adds (np.nan if tweet no longer exists!)
+    df.rename(columns = {'Retweets':'RTs_orig'}, inplace = True)
     new_cols = ['Retweets', 'Replies', 'Likes', 'Quotes']
     df = apply_and_concat(df, 'Tweet ID', get_retr_repl_likes_quotes_count, new_cols)
+    print(df.shape)
 
-    # Remove rows pointing to deleted tweets or suspended users (Tweet ID in UNAVAILABLE_TWEETS)
-    suspended = df['Tweet ID'].isin(UNAVAILABLE_TWEETS)
-#    not_found_by_client = df['Retweets'].isnull()
+#    # Remove rows pointing to deleted tweets or suspended users (Tweet ID in UNAVAILABLE_TWEETS)
+#    suspended = df['Tweet ID'].isin(UNAVAILABLE_TWEETS)
+#    suspended_df = df[suspended]
+#    suspended_users = suspended_df['User'].values.tolist()
+#    print('''
+#    These users have been flagged as suspended, because
+#    their jediswap-related tweet is no longer available
+#    or they have been suspended from Twitter altogether:
+#    ''')
+#    [print('\t'+x) for x in suspended_users]
+#    df = df[~suspended]
+#    print(df.shape)
 
-    suspended_df = df[suspended]
-    suspended_users = suspended_df['User'].values.tolist()
-    print('''
-    These users have been dropped from the data, because
-    their jediswap-related tweet is no longer available
-    or they have been suspended from Twitter altogether:
-    ''')
-    [print('\t'+x) for x in suspended_users]
-    df = df[~suspended]
+    # Flag tweets from suspended users
+    print('Flagging suspended Twitter users based on Tweet IDs...')
+    df['Suspended User'] = df['Tweet ID'].apply(flag_as_suspended)
+    suspended = df.loc[df['Suspended User'] == True]
+    print('These users have been flagged as suspended by Twitter:\n')
+    user_ids_d = suspended[['User', 'User ID']].set_index('User').to_dict()['User ID']
+    prettyprint(user_ids_d, 'Twitter Handle', 'User ID')
+    print(df.shape)
 
-    # Convert values of some columns from float to int
-    to_convert = ['Retweets', 'Replies', 'Likes', 'Quotes']
-    df[to_convert] = df[to_convert].astype(int)
+    # Calculate Twitter points
+    print('Calculating Force Wielder points...')
+    df['Follower Points'] = df.apply(lambda x: follower_points_formula(
+        x['Followers'], x['Duplicate'], x['Invalid Twitter Link']), axis=1)
+
+    df['Retweet Points'] = df.apply(lambda x: retweet_points_formula(
+        x['Retweets'], x['Duplicate'], x['Invalid Twitter Link']), axis=1)
+
+    df['Total Points'] = df.apply(lambda x: tweet_points_formula(
+        x['Followers'], x['Retweets'],
+        x['Duplicate'], x['Invalid Twitter Link']
+        ), axis=1)
+
+    # Convert values of some columns from float to int (and nan or str to ' ')
+    print('Converting some columns to int')
+    to_convert = ['Retweets', 'Replies', 'Likes', 'Quotes', 'Follower Points',
+        'Retweet Points', 'Total Points', 'Followers']
+    for col in to_convert:
+        df[col] = df[col].apply(safe_to_int)
+    print(df.shape)
+
+    # Delete tweet preview for invalid links and suspended users
+    df['Tweet Preview'] = df.apply(row_handler, axis=1)
+
+    # No points for duplicate entries, invalid links and suspended users
+    df['Follower Points'] = df.apply(correct_follower_p, axis=1)
+    df['Retweet Points'] = df.apply(correct_retweet_p, axis=1)
+    df['Total Points'] = df.apply(correct_total_p, axis=1)
 
     return df
-
-
-
 
 def save_csv(df, out_path, sort_by='User'):
     '''
     Saves DataFrame with specified column and row order to disk.
     '''
+    # Determine which columns to include
     cols = [
         'Tweet ID', 'User', 'Followers', 'Retweets', 'Replies', 'Likes', 'Quotes',
-        'Status', 'Follower Points', 'Retweet Points', 'Tweet Preview', 'Comments'
+        'Follower Points', 'Retweet Points', 'Total Points',
+        'Duplicate', 'Invalid Twitter Link', 'Suspended User',
+        'Red Flag', 'Tweet Preview', 'Status', 'Comments', 'Link'
         ]
-
-
     out_df = df[cols]
-    out_df.rename(columns={'Tweet Content':'Tweet Preview'}, inplace=True)  # was commented out!
+
+    # Replace ' ' with nan temporarily to avoid error while sorting
+    def switch_nan(val):
+        if val == ' ':
+            return np.nan
+        if np.isnan(float(val)):
+            return ' '
+        else:
+            return val
+
+    # Sort data for final arrangement
+    out_df[sort_by] = out_df[sort_by].apply(switch_nan)
     out_df = out_df.sort_values(sort_by, ascending=False)
+    out_df[sort_by] = out_df[sort_by].apply(safe_to_int)
+
+    # Save to csv
     out_df.to_csv(out_path, index=False)
+    print('Csv saved as', out_path)
+
     return out_df
