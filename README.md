@@ -12,13 +12,13 @@ and local json files to avoid excessive querying of the API. No tweet id is
 queried twice. Queried tweet contents and metadata are stored locally before the
 script ends and loaded again the next time the script is run.
 
-For each tweet, the following data is obtained:
+### For each tweet, the following data is obtained:
 - engagement metrics (number of retweets, replies, quotes and likes)
 - number of followers of tweet author
 - preview of tweet contents
 - timestamp
 
-Additionally, flags are added to catch:
+### Additionally, flags are added to catch:
 - users suspended by twitter
 - invalid twitter links
 - a literal 'red flag' that is triggered by a keyword contained in tweet (can be set)
