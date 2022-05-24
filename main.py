@@ -2,7 +2,7 @@ from csv_handler import *
 
 # Define csv paths
 in_csv = './Force Wielders (Responses) - Form Responses 1.tsv'
-out_path = './Force_Wielders_Followers_Retweets.csv'
+out_path = './Force_Wielders_Data.csv'
 
 # Load csv
 obvious_print('Loading csv...')
@@ -14,7 +14,7 @@ df = fill_missing_data(df)
 
 # Save result locally as csv
 obvious_print('Saving csv...')
-out_df = save_csv(df, out_path, sort_by='Retweets')
+out_df = save_csv(df, out_path, sort_by='Total Points')
 
 # Update json files used for memoization (TWEETS, USERS, SUSPENDED_USERS)
 obvious_print('Updating memos...')
