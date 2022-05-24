@@ -1,3 +1,4 @@
+# functions_twitter.py
 
 import os, inspect, json, tweepy
 from dotenv import load_dotenv
@@ -676,6 +677,19 @@ def flag_as_duplicate(_id):
     else:
         return True
 
+def flag_as_suspended(_id):
+    '''
+    For use as df.apply() over a DataFrame sorted by timestamps.
+    Flags user as suspended if tweet id is in UNAVAILABLE_TWEETS
+    '''
+    global UNIVERSAL_MEMO
+    if _id not in UNAVAILABLE_TWEETS:
+        return ' '
+    elif np.isnan(float(_id)):
+        return ' '
+    else:
+        return True
+
 def tweet_points_formula(n_followers, n_retweets, duplicate, inval_link):
     if (duplicate == True) or (inval_link == True):
         return np.nan
@@ -698,8 +712,55 @@ def retweet_points_formula(n_retweets, duplicate, inval_link):
     rounded = int(round(retweet_points)) if not np.isnan(retweet_points) else retweet_points
     return rounded
 
+def safe_to_int(val):
+    '''
+    Coverts float to int. Converts np.nan to ' '.
+    '''
+    if isinstance(val, str) or np.isnan(float(val)):
+        return ' '
+    else:
+        return int(val)
 
+def set_red_flag(_id, trigger='airdrop'):
+    content = get_text(_id)
+    if trigger in content:
+        return True
+    else:
+        return ' '
 
+def row_handler(row):
+    if (row['Suspended User'] == True) or (
+        row['Invalid Twitter Link'] == True):
+        return ' '
+    else:
+        return row['Tweet Preview']
+
+def correct_follower_p(row):
+    if (row['Suspended User'] == True) or (
+        row['Invalid Twitter Link'] == True) or (
+        row['Duplicate'] == True) or (
+        row['Red Flag'] == True):
+        return ' '
+    else:
+        return row['Follower Points']
+
+def correct_retweet_p(row):
+    if (row['Suspended User'] == True) or (
+        row['Invalid Twitter Link'] == True) or (
+        row['Duplicate'] == True) or (
+        row['Red Flag'] == True):
+        return ' '
+    else:
+        return row['Retweet Points']
+
+def correct_total_p(row):
+    if (row['Suspended User'] == True) or (
+        row['Invalid Twitter Link'] == True) or (
+        row['Duplicate'] == True) or (
+        row['Red Flag'] == True):
+        return ' '
+    else:
+        return row['Total Points']
 
 # Uncomment if there is no TWEETS json file yet (if running for first time i.e.)
 #TWEETS = get_tweets(keyword, max_tweets)
