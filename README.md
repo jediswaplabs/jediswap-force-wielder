@@ -1,4 +1,4 @@
-# jediswap-force-wielder
+# Jediswap Force Wielder
 
 Some scripts needed to automate the Jediswap community incentive program.
 Takes a tsv file containing twitter links. Queries Twitter API & Twitter
