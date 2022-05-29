@@ -21,6 +21,18 @@ def apply_and_concat(dataframe, field, func, column_names):
         dataframe[field].apply(
             lambda cell: pd.Series(func(cell), index=column_names))), axis=1)
 
+def get_cols(in_csv, sep=','):
+    '''
+    Takes csv file, returns pandas DataFrame.
+    '''
+    cols = ['Submit a Link to your tweet, video or article',
+            'Timestamp', 'Submission Type', 'Status', 'Followers',
+            'Retweets', 'Views', 'Follower Points', 'Retweet Points',
+            'Total Points', 'Comments']
+    with open(in_csv) as infile:
+        data = pd.read_csv(infile, sep='\t', header='infer')
+    return list(data.columns)
+
 def load_csv(in_csv, sep=','):
     '''
     Takes csv file, returns pandas DataFrame.
