@@ -37,21 +37,6 @@ def load_csv(in_csv, sep=','):
     '''
     Takes csv file, returns pandas DataFrame.
     '''
-    cols = ['Submit a Link to your tweet, video or article',
-            'Timestamp', 'Submission Type', 'Status', 'Followers',
-            'Retweets', 'Views', 'Follower Points', 'Retweet Points',
-            'Total Points', 'Comments']
-    with open(in_csv) as infile:
-        data = pd.read_csv(infile, sep='\t', header='infer', usecols=cols)
-        data = data.rename(columns = {
-        'Submit a Link to your tweet, video or article': 'Link'
-        })
-    return data
-
-def load_csv(in_csv, sep=','):
-    '''
-    Takes csv file, returns pandas DataFrame.
-    '''
     with open(in_csv) as infile:
         data = pd.read_csv(infile, sep='\t', header='infer')
     return data
@@ -68,7 +53,7 @@ def fill_missing_data(df):
 
     # Grab Tweet ID out of link and add as new column
     print('\n\tExtracting Tweet ID using regex...')
-    df['Tweet ID'] = df['Link'].str.extract('(?<=status/)(\d{19})', expand=True)
+    df['Tweet ID'] = df[ 'Submit a Link to your tweet, video or article'].str.extract('(?<=status/)(\d{19})', expand=True)
     print(df.shape)
 
     # Flag Non-Twitter Submissions (where no Tweet ID can be grabbed)
@@ -85,7 +70,7 @@ def fill_missing_data(df):
 
     # Grab Twitter handle and add as new column
     print('\n\tExtracting Twitter handle using regex...')
-    df['Twitter Handle'] = df['Link'].str.extract(
+    df['Twitter Handle'] = df[ 'Submit a Link to your tweet, video or article'].str.extract(
         '(?<=twitter\.com/)(.+?)(?=/status)', expand=True
         )
     print(df.shape)
@@ -104,15 +89,6 @@ def fill_missing_data(df):
         )
     print(df.shape)
 
-    # Rearrange column order
-#    print('\n\tRearranging column order...')
-#    rearranged = [
-#        'Twitter Handle', 'Link', 'Tweet ID', 'Retweets', 'Views', 'Duplicate', 'Non-Twitter Submission',
-#        'Red Flag', 'Status', 'Comments', 'Tweet Preview', 'Twitter User ID'
-#        ]
-#    df = df[rearranged]
-#    print(df.shape)
-
     # Add column: n_followers per user
     print('\nQuerying for follower count and adding as new column (get_followers_count())...')
     print(df.head(2))
@@ -125,19 +101,6 @@ def fill_missing_data(df):
     new_cols = ['Retweets', 'Replies', 'Likes', 'Quotes']
     df = apply_and_concat(df, 'Tweet ID', get_retr_repl_likes_quotes_count, new_cols)
     print(df.shape)
-
-#    # Remove rows pointing to deleted tweets or suspended users (Tweet ID in UNAVAILABLE_TWEETS)
-#    suspended = df['Tweet ID'].isin(UNAVAILABLE_TWEETS)
-#    suspended_df = df[suspended]
-#    suspended_users = suspended_df['Twitter Handle'].values.tolist()
-#    print('''
-#    These users have been flagged as suspended, because
-#    their jediswap-related tweet is no longer available
-#    or they have been suspended from Twitter altogether:
-#    ''')
-#    [print('\t'+x) for x in suspended_users]
-#    df = df[~suspended]
-#    print(df.shape)
 
     # Flag tweets from suspended users
     print('Flagging suspended Twitter users based on Tweet IDs...')
@@ -164,7 +127,7 @@ def fill_missing_data(df):
     # Convert values of some columns from float to int (and nan or str to ' ')
     print('Converting some columns to int')
     to_convert = ['Retweets', 'Replies', 'Likes', 'Quotes', 'Follower Points',
-        'Retweet Points', 'Total Points', 'Followers']
+        'Retweet Points', 'Total Points', 'Followers', 'Month', 'Views']
     for col in to_convert:
         df[col] = df[col].apply(safe_to_int)
     print(df.shape)
@@ -178,20 +141,32 @@ def fill_missing_data(df):
     df['Total Points'] = df.apply(correct_total_p, axis=1)
     # correct_total_p() is ignoring non-twitter submissions
 
+    # Add '@' to every Twitter handle (except if entry is nan)
+    not_nan = df['Twitter Handle'].notnull()
+    df.loc[not_nan, 'Twitter Handle'] = ('@' + df.loc[not_nan]['Twitter Handle'])
+    df.head()
+
+
     return df
 
 def save_csv(df, out_path, sort_by=None):
     '''
     Saves DataFrame with specified column and row order to disk.
     '''
-    # Determine which columns to include
-#    cols = [
-#        'Tweet ID', 'Twitter Handle', 'Followers', 'Retweets', 'Replies', 'Likes', 'Quotes',
-#        'Follower Points', 'Retweet Points', 'Total Points',
-#        'Duplicate', 'Non-Twitter Submission', 'Suspended Twitter User',
-#        'Red Flag', 'Tweet Preview', 'Status', 'Comments', 'Link'
-#        ]
+    # Determine included columns & column order
+    cols = [
+        'Timestamp', 'Submit a Link to your tweet, video or article',
+        'Choose your verification option', 'Provide your Twitter handle(username)',
+        'Wallet', 'Month','Submission Type', 'Status', 'Followers', 'Retweets',
+        'Replies', 'Likes', 'Quotes', 'Views', 'Follower Points', 'Retweet Points',
+        'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
+        'Non-Twitter Submission', 'Suspended Twitter User', 'Red Flag', 'Tweet Preview',
+        'Comments'
+    ]
     out_df = df[cols]
+
+    # Rename column
+    out_df.rename(columns = {'Suspended Twitter User':'User suspended or tweet deleted'}, inplace = True)
 
     # Replace ' ' with nan temporarily to avoid error while sorting
     def switch_nan(val):

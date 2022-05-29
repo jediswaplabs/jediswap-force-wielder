@@ -14,7 +14,7 @@ df = fill_missing_data(df)
 
 # Save result locally as csv
 obvious_print('Saving csv...')
-out_df = save_csv(df, out_path, sort_by='Total Points')
+out_df = save_csv(df, out_path, sort_by=None)
 
 # Update json files used for memoization (TWEETS, USERS, SUSPENDED_USERS)
 obvious_print('Updating memos...')
