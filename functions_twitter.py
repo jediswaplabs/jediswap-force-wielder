@@ -1,6 +1,5 @@
-# functions_twitter.py
-
 import os, inspect, json, tweepy
+import numpy as np
 from dotenv import load_dotenv
 
 # TWEETS contains all tweets containing {keyword} from last 7 days
@@ -54,7 +53,7 @@ def obvious_print(msg):
     out_str = '\n' + '='*75 + '\n\t' + msg + '\n' + '='*75 + '\n'
     print(out_str)
 
-def prettyprint(dict_, keys_label='metric', values_label='User ID'):
+def prettyprint(dict_, keys_label='metric', values_label='Twitter User ID'):
     print('\n{:^35} | {:^6}'.format(keys_label, values_label))
     print('-'*65)
     for k,v in dict_.items():
@@ -729,15 +728,15 @@ def set_red_flag(_id, trigger='airdrop'):
         return ' '
 
 def row_handler(row):
-    if (row['Suspended User'] == True) or (
-        row['Invalid Twitter Link'] == True):
+    if (row['Suspended Twitter User'] == True) or (
+        row['Non-Twitter Submission'] == True):
         return ' '
     else:
         return row['Tweet Preview']
 
 def correct_follower_p(row):
-    if (row['Suspended User'] == True) or (
-        row['Invalid Twitter Link'] == True) or (
+    if (row['Suspended Twitter User'] == True) or (
+        row['Non-Twitter Submission'] == True) or (
         row['Duplicate'] == True) or (
         row['Red Flag'] == True):
         return ' '
@@ -745,8 +744,8 @@ def correct_follower_p(row):
         return row['Follower Points']
 
 def correct_retweet_p(row):
-    if (row['Suspended User'] == True) or (
-        row['Invalid Twitter Link'] == True) or (
+    if (row['Suspended Twitter User'] == True) or (
+        row['Non-Twitter Submission'] == True) or (
         row['Duplicate'] == True) or (
         row['Red Flag'] == True):
         return ' '
@@ -754,8 +753,7 @@ def correct_retweet_p(row):
         return row['Retweet Points']
 
 def correct_total_p(row):
-    if (row['Suspended User'] == True) or (
-        row['Invalid Twitter Link'] == True) or (
+    if (row['Suspended Twitter User'] == True) or (
         row['Duplicate'] == True) or (
         row['Red Flag'] == True):
         return ' '
