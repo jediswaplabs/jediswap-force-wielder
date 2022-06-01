@@ -689,10 +689,10 @@ def flag_as_suspended(_id):
     else:
         return True
 
-def tweet_points_formula(n_followers, n_retweets, duplicate, inval_link):
+def tweet_points_formula(n_followers, n_retweets, n_quotes, duplicate, inval_link):
     if (duplicate == True) or (inval_link == True):
         return np.nan
-    retweet_bonus = 3.5 * n_retweets**(1/1.2)
+    retweet_bonus = 3.5 * (n_retweets + n_quotes)**(1/1.2)
     tweet_points = 0.1 * n_followers **(1/1.6) + retweet_bonus
     rounded = int(round(tweet_points)) if not np.isnan(tweet_points) else tweet_points
     return rounded

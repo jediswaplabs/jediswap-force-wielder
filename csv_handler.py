@@ -120,7 +120,7 @@ def fill_missing_data(df):
         x['Retweets'], x['Duplicate'], x['Non-Twitter Submission']), axis=1)
 
     df['Total Points'] = df.apply(lambda x: tweet_points_formula(
-        x['Followers'], x['Retweets'],
+        x['Followers'], x['Retweets'], x['Quotes'],
         x['Duplicate'], x['Non-Twitter Submission']
         ), axis=1)
 
