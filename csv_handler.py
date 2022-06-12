@@ -1,4 +1,3 @@
-#
 '''
 This file encapsulates file and data handling.
 '''
@@ -103,14 +102,19 @@ def fill_missing_data(df):
     df = apply_and_concat(df, 'Tweet ID', get_retr_repl_likes_quotes_count, new_cols)
     print(df.shape)
 
-    # Flag tweets from suspended users
+    # update (reset) flags for suspended Twitter users (or deleted tweets)
     print('Flagging suspended Twitter users based on Tweet IDs...')
-    df['Suspended Twitter User'] = df['Tweet ID'].apply(flag_as_suspended)
+    df = update_suspension_flags(df)
     suspended = df.loc[df['Suspended Twitter User'] == True]
     print('These users have been flagged as suspended by Twitter:\n')
     user_ids_d = suspended[['Twitter Handle', 'Twitter User ID']].set_index('Twitter Handle').to_dict()['Twitter User ID']
     prettyprint(user_ids_d, 'Twitter Handle', 'Twitter User ID')
     print(df.shape)
+
+#    # Flag tweets from suspended users (old version)
+#    print('Flagging suspended Twitter users based on Tweet IDs...')
+#    df['Suspended Twitter User'] = df['Tweet ID'].apply(flag_as_suspended)
+
 
     # Calculate Twitter points
     print('Calculating Force Wielder points...')
@@ -150,7 +154,7 @@ def fill_missing_data(df):
 
     return df
 
-def save_csv(df, out_path, sort_by=None):
+def save_csv(df, out_path, sep=',', sort_by=None):
     '''
     Saves DataFrame with specified column and row order to disk.
     '''
@@ -185,7 +189,7 @@ def save_csv(df, out_path, sort_by=None):
         out_df[sort_by] = out_df[sort_by].apply(safe_to_int)
 
     # Save to csv
-    out_df.to_csv(out_path, index=False)
+    out_df.to_csv(out_path, sep=sep, index=False)
     print('Csv saved as', out_path)
 
     return out_df
