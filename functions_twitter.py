@@ -299,6 +299,30 @@ def user_to_dict(user_status, fill_with_nan=False):
 
     return d
 
+
+def get_suspended_tweets(tweet_id_list):
+    '''
+    Takes list of tweet ids, returns subset (list) of
+    tweet ids from suspended accounts (batch-querying client).
+    '''
+    from itertools import zip_longest
+    def grouper(iterable, n, fillvalue=None):
+        args = [iter(iterable)] * n
+        result = zip_longest(*args, fillvalue=fillvalue)
+        return [list(x) for x in result]
+
+    chunked_ids = grouper(tweet_id_list, 100)
+    suspended_tweet_ids = set()
+
+    for chunk in chunked_ids:
+        chunk = [x for x in chunk if x != None]
+        response = client.get_tweets(chunk)
+        to_add = {x['resource_id'] for x in response.errors}
+        print('to_add:', to_add)
+        suspended_tweet_ids.update(to_add)
+
+    return list(suspended_tweet_ids)
+
 def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path,
                  su_p=SUSPENDED_USERS_json_path):
     global TWEETS
