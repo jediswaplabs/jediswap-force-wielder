@@ -217,6 +217,7 @@ def tweet_to_dict(t, fill_with_nan=False):
     d['favorite_count'] = t['favorite_count']
     d['retweeted_bool'] = t['retweeted']
     d['favorited_bool'] = t['favorited']
+    d['in_reply_to_status_id'] = t['in_reply_to_status_id']
 
 
     return d
@@ -299,7 +300,6 @@ def user_to_dict(user_status, fill_with_nan=False):
 
     return d
 
-
 def get_suspended_tweets(tweet_id_list):
     '''
     Takes list of tweet ids, returns subset (list) of
@@ -318,7 +318,6 @@ def get_suspended_tweets(tweet_id_list):
         chunk = [x for x in chunk if x != None]
         response = client.get_tweets(chunk)
         to_add = {x['resource_id'] for x in response.errors}
-        print('to_add:', to_add)
         suspended_tweet_ids.update(to_add)
 
     return list(suspended_tweet_ids)
@@ -676,7 +675,6 @@ def orig_quote_or_rt(tweet_id):
 
 
 
-
 ### pandas-related
 
 def check_for_nan(val):
@@ -700,18 +698,60 @@ def flag_as_duplicate(_id):
     else:
         return True
 
-def flag_as_suspended(_id):
+#def flag_as_suspended(_id):
+#    '''
+#    For use as df.apply() over a DataFrame sorted by timestamps.
+#    Flags user as suspended if tweet id is in UNAVAILABLE_TWEETS
+#    '''
+#    global UNIVERSAL_MEMO
+#    if _id not in UNAVAILABLE_TWEETS:
+#        return ' '
+#    elif np.isnan(float(_id)):
+#        return ' '
+#    else:
+#        return True
+
+def update_suspension_flags(df):
     '''
-    For use as df.apply() over a DataFrame sorted by timestamps.
-    Flags user as suspended if tweet id is in UNAVAILABLE_TWEETS
+    batch-queries all tweet ids in the dataset and
+    updates SUSPENDED_USERS and the suspension flags.
     '''
-    global UNIVERSAL_MEMO
-    if _id not in UNAVAILABLE_TWEETS:
-        return ' '
-    elif np.isnan(float(_id)):
-        return ' '
-    else:
-        return True
+    # Get list of all tweet ids from suspended accounts
+    all_ids = list(df['Tweet ID'].unique())
+    all_ids = [x for x in all_ids if not np.isnan(float(x))]
+    suspended_tweets = get_suspended_tweets(all_ids)
+
+    def flag_as_suspended(_id):
+        if _id not in suspended_tweets:
+            return ' '
+        elif np.isnan(float(_id)):
+            return ' '
+        else:
+            return True
+
+    # Add flag to df for each tweet id from a suspended account
+    df['Suspended Twitter User'] = df['Tweet ID'].apply(flag_as_suspended)
+    return df
+
+
+def set_reply_flags(df):
+    '''
+    Queries each tweet ID and adds a bool flag if tweet is a reply.
+    '''
+    def set_flag(t_id):
+        global UNAVAILABLE_TWEETS
+        if t_id in UNAVAILABLE_TWEETS:
+            return ''
+        tweet = get_tweet(t_id)
+        in_reply_to = tweet['in_reply_to_status_id']
+        if in_reply_to == None:
+            return ''
+        else:
+            return True
+
+    df['Tweet is reply'] = df['Tweet ID'].apply(set_flag)
+    return df
+
 
 def tweet_points_formula(n_followers, n_retweets, n_quotes, duplicate, inval_link):
     if (duplicate == True) or (inval_link == True):
