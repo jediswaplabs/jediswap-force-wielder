@@ -753,6 +753,25 @@ def set_reply_flags(df):
     return df
 
 
+def set_mentions_flags(df):
+    '''
+    Queries each tweet ID and adds a bool flag if tweet has more than 2 mentions.
+    '''
+    def set_flag(t_id):
+        global UNAVAILABLE_TWEETS
+        if t_id in UNAVAILABLE_TWEETS:
+            return ''
+        tweet = get_tweet(t_id)
+        n_mentions = len(tweet['entities']['user_mentions'])
+        if n_mentions > 2:
+            return True
+        else:
+            return ''
+
+    df['3+ mentions'] = df['Tweet ID'].apply(set_flag)
+    return df
+
+
 def tweet_points_formula(n_followers, n_retweets, n_quotes, duplicate, inval_link):
     if (duplicate == True) or (inval_link == True):
         return np.nan
