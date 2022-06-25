@@ -772,6 +772,29 @@ def set_mentions_flags(df):
     return df
 
 
+def set_multiple_links_flag(row):
+    '''
+    Adds a flag 'Multiple links submitted' to each row containing a valid twitter
+    link and a ' ', indicating another link has been submitted.
+    '''
+    if (row['Non-Twitter Submission'] != True) and (
+        row['Submit a Link to your tweet, video or article'].find(' ') != -1):
+        return True
+    else:
+        return False
+
+
+def add_multiple_links_comment(row):
+    '''
+    Adds a comment 'Please submit each link as a single entry' to each row
+    with the 'Multiple links submitted' flag set
+    '''
+    if (row['Multiple links submitted'] == True):
+        return 'Please submit each link as a single entry'
+    else:
+        return row['Comments']
+
+
 def tweet_points_formula(n_followers, n_retweets, n_quotes, duplicate, inval_link):
     if (duplicate == True) or (inval_link == True):
         return np.nan
@@ -820,6 +843,7 @@ def row_handler(row):
 def correct_follower_p(row):
     if (row['Suspended Twitter User'] == True) or (
         row['Non-Twitter Submission'] == True) or (
+        row['Multiple links submitted'] == True) or (
         row['Duplicate'] == True) or (
         row['Red Flag'] == True):
         return ' '
@@ -829,6 +853,7 @@ def correct_follower_p(row):
 def correct_retweet_p(row):
     if (row['Suspended Twitter User'] == True) or (
         row['Non-Twitter Submission'] == True) or (
+        row['Multiple links submitted'] == True) or (
         row['Duplicate'] == True) or (
         row['Red Flag'] == True):
         return ' '
@@ -837,6 +862,7 @@ def correct_retweet_p(row):
 
 def correct_total_p(row):
     if (row['Suspended Twitter User'] == True) or (
+        row['Multiple links submitted'] == True) or (
         row['Duplicate'] == True) or (
         row['Red Flag'] == True):
         return ' '
