@@ -102,7 +102,7 @@ def fill_missing_data(df):
     df = apply_and_concat(df, 'Tweet ID', get_retr_repl_likes_quotes_count, new_cols)
     print(df.shape)
 
-    # update (reset) flags for suspended Twitter users (or deleted tweets)
+    # update (set) flags for suspended Twitter users (or deleted tweets)
     print('Flagging suspended Twitter users based on Tweet IDs...')
     df = update_suspension_flags(df)
     suspended = df.loc[df['Suspended Twitter User'] == True]
@@ -110,6 +110,18 @@ def fill_missing_data(df):
     user_ids_d = suspended[['Twitter Handle', 'Twitter User ID']].set_index('Twitter Handle').to_dict()['Twitter User ID']
     prettyprint(user_ids_d, 'Twitter Handle', 'Twitter User ID')
     print(df.shape)
+
+    # set reply tweet flag ('is reply' True if tweet is reply)
+    print('Setting flags for reply tweets...')
+    df = set_reply_flags(df)
+    print(df.shape)
+
+    # set mentions flag ('3+ mentions' True if contains more than 2 mentions)
+    print('Setting flags for tweets mentioning more than 2 accounts...')
+    df = set_mentions_flags(df)
+    print(df.shape)
+
+
 
 #    # Flag tweets from suspended users (old version)
 #    print('Flagging suspended Twitter users based on Tweet IDs...')
@@ -122,7 +134,7 @@ def fill_missing_data(df):
         x['Followers'], x['Duplicate'], x['Non-Twitter Submission']), axis=1)
 
     df['Retweet Points'] = df.apply(lambda x: retweet_points_formula(
-        x['Retweets'], x['Duplicate'], x['Non-Twitter Submission']), axis=1)
+        x['Retweets'], x['Quotes'], x['Duplicate'], x['Non-Twitter Submission']), axis=1)
 
     df['Total Points'] = df.apply(lambda x: tweet_points_formula(
         x['Followers'], x['Retweets'], x['Quotes'],
@@ -131,8 +143,12 @@ def fill_missing_data(df):
 
     # Convert values of some columns from float to int (and nan or str to ' ')
     print('Converting some columns to int')
+#    to_convert = ['Retweets', 'Replies', 'Likes', 'Quotes', 'Follower Points',
+#        'Retweet Points', 'Total Points', 'Followers', 'Month', 'Views']
     to_convert = ['Retweets', 'Replies', 'Likes', 'Quotes', 'Follower Points',
-        'Retweet Points', 'Total Points', 'Followers', 'Month', 'Views']
+        'Retweet Points', 'Total Points', 'Followers']
+
+
     for col in to_convert:
         df[col] = df[col].apply(safe_to_int)
     print(df.shape)
@@ -140,7 +156,19 @@ def fill_missing_data(df):
     # Delete tweet preview for invalid links and suspended users
     df['Tweet Preview'] = df.apply(row_handler, axis=1)
 
-    # No points for duplicate entries, [invalid links] and suspended users
+    # Set flag if 1 valid twitter link + additional links have been submitted
+    df['Multiple links submitted'] = df.apply(set_multiple_links_flag, axis=1)
+
+    # Add comment 'Please submit each link as a single entry' if multiple links flag set
+#    subset = df[df['Multiple links submitted'] == True]
+    df['Comments'] = ' '
+    df['Comments'] = df.apply(add_multiple_links_comment, axis=1)
+
+
+
+
+
+    # No points for duplicate entries, [invalid links], suspended users, or multiple links submitted
     df['Follower Points'] = df.apply(correct_follower_p, axis=1)
     df['Retweet Points'] = df.apply(correct_retweet_p, axis=1)
     df['Total Points'] = df.apply(correct_total_p, axis=1)
@@ -150,7 +178,6 @@ def fill_missing_data(df):
     not_nan = df['Twitter Handle'].notnull()
     df.loc[not_nan, 'Twitter Handle'] = ('@' + df.loc[not_nan]['Twitter Handle'])
     df.head()
-
 
     return df
 
@@ -162,11 +189,11 @@ def save_csv(df, out_path, sep=',', sort_by=None):
     cols = [
         'Timestamp', 'Submit a Link to your tweet, video or article',
         'Choose your verification option', 'Provide your Twitter handle(username)',
-        'Wallet', 'Month','Submission Type', 'Status', 'Followers', 'Retweets',
-        'Replies', 'Likes', 'Quotes', 'Views', 'Follower Points', 'Retweet Points',
+        'Wallet', 'Followers', 'Retweets',
+        'Replies', 'Likes', 'Quotes', 'Follower Points', 'Retweet Points',
         'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
-        'Non-Twitter Submission', 'Suspended Twitter User', 'Red Flag', 'Tweet Preview',
-        'Comments'
+        'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '3+ mentions',
+        'Red Flag', 'Tweet Preview', 'Comments'
     ]
     out_df = df[cols]
 
