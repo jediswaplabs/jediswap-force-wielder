@@ -792,7 +792,7 @@ def add_multiple_links_comment(row):
     if (row['Multiple links submitted'] == True):
         return 'Please submit each link as a single entry'
     else:
-        return row['Comments']
+        return ' '
 
 
 def tweet_points_formula(n_followers, n_retweets, n_quotes, duplicate, inval_link):
@@ -810,10 +810,10 @@ def follower_points_formula(n_followers, duplicate, inval_link):
     rounded = int(round(follower_points)) if not np.isnan(follower_points) else follower_points
     return rounded
 
-def retweet_points_formula(n_retweets, duplicate, inval_link):
+def retweet_points_formula(n_retweets, n_quotes, duplicate, inval_link):
     if (duplicate == True) or (inval_link == True):
         return np.nan
-    retweet_points = 3.5 * n_retweets**(1/1.2)
+    retweet_points = 3.5 * (n_retweets + n_quotes)**(1/1.2)
     rounded = int(round(retweet_points)) if not np.isnan(retweet_points) else retweet_points
     return rounded
 
