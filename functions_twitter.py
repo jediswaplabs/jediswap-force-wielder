@@ -1,27 +1,26 @@
 import os, inspect, json, tweepy
 import numpy as np
 from dotenv import load_dotenv
+from itertools import zip_longest
 
-# TWEETS contains all tweets containing {keyword} from last 7 days
+
 TWEETS = {}
 USERS = {}
 SUSPENDED_USERS = set()
 UNAVAILABLE_TWEETS = set()
-TWEETS_json_path = './TWEETS_jediswap.json'
-USERS_json_path = './USERS_jediswap.json'
-engagement_dict_path = './DEBUG_engagement_dict.json'
-SUSPENDED_USERS_json_path = './SUSPENDED_USERS_jediswap.json'
+TWEETS_json_path = './TWEETS_memo.json'
+USERS_json_path = './USERS_memo.json'
 FOUND_IN_TWEETS = 0
 HAD_TO_QUERY_TWEETS = 0
 HAD_TO_QUERY_USERS = 0
 HAD_TO_QUERY_CLIENT_FOR_TWEETS = 0
-UNIVERSAL_MEMO = set()    # for use by functions  called like df.apply(). Is wiped before use each time.
+UNIVERSAL_MEMO = set()    # for use by functions called like df.apply(). Is wiped before use each time.
+engagement_dict_path = './engagement_metrics_memo.json'
 
 
-
+# only used to populate TWEETS when script is run for the first time
 keyword = 'jediswap'
 max_tweets = 2000
-
 
 # Instantiate Twitter API
 load_dotenv('./.env')
@@ -45,6 +44,7 @@ client = tweepy.Client(
     access_token=os.environ['OAUTH_CLIENT_ID'],
     access_token_secret=os.environ['OAUTH2_CLIENT_SECRET']
 )
+
 
 
 ###  batch API querying / file processing
@@ -123,16 +123,16 @@ def get_tweets_raw(keyw, max_amount):
 
     return out_d
 
-def load_TWEETS_from_json(TWEETS_json_path):
+def load_TWEETS_from_json(json_path):
     '''
     Populates global variable TWEETS when the script is starting.
     '''
     global TWEETS
-    TWEETS = read_from_json(TWEETS_json_path)
+    TWEETS = read_from_json(json_path)
 
-def save_TWEETS_to_json(TWEETS_json_path):
+def save_TWEETS_to_json(json_path):
     global TWEETS
-    write_to_json(TWEETS, TWEETS_json_path)
+    write_to_json(TWEETS, json_path)
 
 def load_USERS_from_json(USERS_json_path):
     '''
@@ -144,18 +144,6 @@ def load_USERS_from_json(USERS_json_path):
 def save_USERS_to_json(USERS_json_path):
     global USERS
     write_to_json(USERS, USERS_json_path)
-
-def load_SUSPENDED_USERS_from_json(path=SUSPENDED_USERS_json_path):
-    '''
-    Populates global variable TWEETS when the script is starting.
-    '''
-    global SUSPENDED_USERS
-    SUSPENDED_USERS = set(read_list_from_json(path))
-
-def save_SUSPENDED_USERS_to_json(path=SUSPENDED_USERS_json_path):
-    global SUSPENDED_USERS
-
-    write_list_to_json(list(SUSPENDED_USERS), path)
 
 def populate_USERS_from_TWEETS():
     '''
@@ -213,52 +201,12 @@ def tweet_to_dict(t, fill_with_nan=False):
     d['in_reply_to_status_id'] = t['in_reply_to_status_id_str']
     d['in_reply_to_user_id'] = t['in_reply_to_status_id_str']
     d['in_reply_to_screen_name'] = t['in_reply_to_screen_name']
-#    d['orig_retw_tweet_data'] = t['retweeted_status']
     d['favorite_count'] = t['favorite_count']
     d['retweeted_bool'] = t['retweeted']
     d['favorited_bool'] = t['favorited']
     d['in_reply_to_status_id'] = t['in_reply_to_status_id']
 
 
-    return d
-
-def tweet_to_dict_raw(t, fill_with_nan=False):
-    '''
-    Converts a Twitter API tweet object to a python dictionary
-    with the tweet id as key. This version returns the original
-    callable objects from the API. Can't be serialized.
-    '''
-    d = {}
-
-    # option to return nan values for error handling:
-    if fill_with_nan:
-        keys = [
-            'id', 'author', 'ts', 'entities', 'geo', 'is_quote_status',
-            'lang', 'retweet', 'was_retweeted', 'retweets', 'retw_count',
-            'retweeted_bool', 'source', 'text', 'truncated', 'user'
-            ]
-        for k in keys:
-            d[k] = np.nan
-            d['text'] = '======= User suspended: No data avaiable! ======='
-        return d
-
-    # create dictionary of tweet metadata
-    d['id'] = t.id_str
-    d['ts'] = t.created_at
-    d['entities'] = t.entities
-    d['geo'] = t.geo
-    d['id'] = t.id_str
-    d['is_quote_status'] = t.is_quote_status
-    d['lang'] = t.lang
-    d['was_retweeted'] = t.retweeted
-    d['source'] = t.source
-    d['text'] = t.text
-    d['truncated'] = t.truncated
-    d['user'] = t.user
-    d['retweet_count'] = t.retweet_count
-    d['retweets'] = t.retweets
-    d['retweeted_bool'] = t.retweeted
-    d['retweet'] = t.retweet
     return d
 
 def user_to_dict(user_status, fill_with_nan=False):
@@ -284,7 +232,6 @@ def user_to_dict(user_status, fill_with_nan=False):
             d['bio'] = '======= User suspended or identified as bot and banned. No data avaiable! ======='
         return d
 
-
     # create dictionary of user metadata
     d['id'] = t['id_str']
     d['created_at'] = t['created_at']
@@ -305,7 +252,6 @@ def get_suspended_tweets(tweet_id_list):
     Takes list of tweet ids, returns subset (list) of
     tweet ids from suspended accounts (batch-querying client).
     '''
-    from itertools import zip_longest
     def grouper(iterable, n, fillvalue=None):
         args = [iter(iterable)] * n
         result = zip_longest(*args, fillvalue=fillvalue)
@@ -322,8 +268,7 @@ def get_suspended_tweets(tweet_id_list):
 
     return list(suspended_tweet_ids)
 
-def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path,
-                 su_p=SUSPENDED_USERS_json_path):
+def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path):
     global TWEETS
     global USERS
     write_to_json(TWEETS, tw_p)
@@ -377,7 +322,6 @@ def query_API_for_tweet_obj(_id):
 
     # if not available, return dataset filled with nans
     except TweepyException as e:
-
         print('Caught an exception for this one:')
 
         if isinstance(e, tweepy.errors.NotFound):
@@ -487,7 +431,6 @@ def get_tweet(tweet_id):
 
     # if not in there, query Twitter API
     else:
-        print('DDDDDDDDDD')
         return query_API_for_tweet_obj(tweet_id)
 
 def get_user(user_id):
@@ -511,7 +454,6 @@ def get_user(user_id):
     # if not in there, query Twitter API
     else:
         cond_log(f'calling query_API_for_user_obj(user_id) with user id {user_id}...')
-        print('CCCCCCCCC')
         print(f'Had to query API for User ID {user_id}')
         return query_API_for_user_obj(user_id)
 
@@ -626,6 +568,7 @@ def get_source_tweet_n_likes(tweet_id):
     return get_source_tweet_from_retweet(tweet_id)['favorite_count']
 
 
+
 ### user-related
 
 def get_friends_count(user_id):
@@ -698,19 +641,6 @@ def flag_as_duplicate(_id):
     else:
         return True
 
-#def flag_as_suspended(_id):
-#    '''
-#    For use as df.apply() over a DataFrame sorted by timestamps.
-#    Flags user as suspended if tweet id is in UNAVAILABLE_TWEETS
-#    '''
-#    global UNIVERSAL_MEMO
-#    if _id not in UNAVAILABLE_TWEETS:
-#        return ' '
-#    elif np.isnan(float(_id)):
-#        return ' '
-#    else:
-#        return True
-
 def update_suspension_flags(df):
     '''
     batch-queries all tweet ids in the dataset and
@@ -733,7 +663,6 @@ def update_suspension_flags(df):
     df['Suspended Twitter User'] = df['Tweet ID'].apply(flag_as_suspended)
     return df
 
-
 def set_reply_flags(df):
     '''
     Queries each tweet ID and adds a bool flag if tweet is a reply.
@@ -751,7 +680,6 @@ def set_reply_flags(df):
 
     df['Tweet is reply'] = df['Tweet ID'].apply(set_flag)
     return df
-
 
 def set_mentions_flags(df):
     '''
@@ -771,6 +699,23 @@ def set_mentions_flags(df):
     df['3+ mentions'] = df['Tweet ID'].apply(set_flag)
     return df
 
+def set_many_tweets_flags(df):
+    '''
+    Counts occurence of each twitter handle per month & adds the flag '>5 tweets per month'
+    if it is found more than 5 times in any given month.
+    '''
+    def set_flag(handle):
+        if handle in handles:
+            return True
+        else:
+            return ''
+
+    monthly_count = df.groupby(['Month', 'Twitter Handle'])['Twitter Handle'].count()
+    greater_than_5 = monthly_count.loc[monthly_count > 5]
+    handles = [x[1] for x in list(greater_than_5.index)]
+
+    df['>5 tweets per month'] = df['Twitter Handle'].apply(set_flag)
+    return df
 
 def set_multiple_links_flag(row):
     '''
@@ -783,7 +728,6 @@ def set_multiple_links_flag(row):
     else:
         return False
 
-
 def add_multiple_links_comment(row):
     '''
     Adds a comment 'Please submit each link as a single entry' to each row
@@ -793,7 +737,6 @@ def add_multiple_links_comment(row):
         return 'Please submit each link as a single entry'
     else:
         return ' '
-
 
 def tweet_points_formula(n_followers, n_retweets, n_quotes, duplicate, inval_link):
     if (duplicate == True) or (inval_link == True):
@@ -869,11 +812,11 @@ def correct_total_p(row):
     else:
         return row['Total Points']
 
-# Uncomment if there is no TWEETS json file yet (if running for first time i.e.)
-#TWEETS = get_tweets(keyword, max_tweets)
 
+
+# Uncomment if TWEETS json file is still empty (if running for first time i.e.)
+#TWEETS = get_tweets(keyword, max_tweets)
 
 # Populate memo variables with past known jediswap tweets (TWEETS) and their users
 load_TWEETS_from_json(TWEETS_json_path)
 load_USERS_from_json(USERS_json_path)
-#load_SUSPENDED_USERS_from_json(SUSPENDED_USERS_json_path)

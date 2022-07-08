@@ -1,14 +1,10 @@
 '''
-This file encapsulates file and data handling.
+This file encapsulates all handling of the actual data (csv, DataFrame).
 '''
 
 import os
 import pandas as pd
 from functions_twitter import *
-
-
-
-
 
 def apply_and_concat(dataframe, field, func, column_names):
     '''
@@ -111,22 +107,15 @@ def fill_missing_data(df):
     prettyprint(user_ids_d, 'Twitter Handle', 'Twitter User ID')
     print(df.shape)
 
-    # set reply tweet flag ('is reply' True if tweet is reply)
+    # Set reply tweet flag ('is reply' True if tweet is reply)
     print('Setting flags for reply tweets...')
     df = set_reply_flags(df)
     print(df.shape)
 
-    # set mentions flag ('3+ mentions' True if contains more than 2 mentions)
+    # Set mentions flag ('3+ mentions' True if contains more than 2 mentions)
     print('Setting flags for tweets mentioning more than 2 accounts...')
     df = set_mentions_flags(df)
     print(df.shape)
-
-
-
-#    # Flag tweets from suspended users (old version)
-#    print('Flagging suspended Twitter users based on Tweet IDs...')
-#    df['Suspended Twitter User'] = df['Tweet ID'].apply(flag_as_suspended)
-
 
     # Calculate Twitter points
     print('Calculating Force Wielder points...')
@@ -143,12 +132,8 @@ def fill_missing_data(df):
 
     # Convert values of some columns from float to int (and nan or str to ' ')
     print('Converting some columns to int')
-#    to_convert = ['Retweets', 'Replies', 'Likes', 'Quotes', 'Follower Points',
-#        'Retweet Points', 'Total Points', 'Followers', 'Month', 'Views']
     to_convert = ['Retweets', 'Replies', 'Likes', 'Quotes', 'Follower Points',
         'Retweet Points', 'Total Points', 'Followers']
-
-
     for col in to_convert:
         df[col] = df[col].apply(safe_to_int)
     print(df.shape)
@@ -156,28 +141,44 @@ def fill_missing_data(df):
     # Delete tweet preview for invalid links and suspended users
     df['Tweet Preview'] = df.apply(row_handler, axis=1)
 
-    # Set flag if 1 valid twitter link + additional links have been submitted
+    # Set flag if 1 valid twitter link + additional link have been submitted
     df['Multiple links submitted'] = df.apply(set_multiple_links_flag, axis=1)
 
     # Add comment 'Please submit each link as a single entry' if multiple links flag set
-#    subset = df[df['Multiple links submitted'] == True]
     df['Comments'] = ' '
     df['Comments'] = df.apply(add_multiple_links_comment, axis=1)
-
-
-
-
 
     # No points for duplicate entries, [invalid links], suspended users, or multiple links submitted
     df['Follower Points'] = df.apply(correct_follower_p, axis=1)
     df['Retweet Points'] = df.apply(correct_retweet_p, axis=1)
     df['Total Points'] = df.apply(correct_total_p, axis=1)
-    # correct_total_p() is ignoring non-twitter submissions
+    # correct_total_p() is ignoring non-twitter submissions!
 
     # Add '@' to every Twitter handle (except if entry is nan)
     not_nan = df['Twitter Handle'].notnull()
     df.loc[not_nan, 'Twitter Handle'] = ('@' + df.loc[not_nan]['Twitter Handle'])
     df.head()
+
+    # Add column 'Month'
+    df['parsed_time'] = pd.to_datetime(df['Timestamp'], infer_datetime_format=True)
+    df['Month'] = df['parsed_time'].dt.month_name()
+
+    # Rank total points per month
+    df['Total Points'] = df['Total Points'].replace(' ', np.nan)
+    months = list(df['Month'].unique())
+    for month in months:
+        subset = df.loc[df['Month'] == month]
+        print('subset ' + month + ':', subset.shape)
+        title = str(month) + ' points rank'
+        df[title] = subset['Total Points'].rank(ascending=False)
+    # Replace nans back to empty strings
+    new_cols = [x for x in list(df.columns) if 'points rank' in x]
+    df[new_cols] = df[new_cols].replace(np.nan, '')
+
+    # Set flag for each Twitter handle who posted >5 tweets during any month
+    print('Setting flags for Twitter users with >5 tweets per month...')
+    df = set_many_tweets_flags(df)
+    print(df.shape)
 
     return df
 
@@ -193,8 +194,10 @@ def save_csv(df, out_path, sep=',', sort_by=None):
         'Replies', 'Likes', 'Quotes', 'Follower Points', 'Retweet Points',
         'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
         'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '3+ mentions',
-        'Red Flag', 'Tweet Preview', 'Comments'
+        '>5 tweets per month', 'Red Flag', 'Tweet Preview', 'Month'
     ]
+    [cols.append(x) for x in list(df.columns) if 'rank' in x]
+    cols.append('Comments')
     out_df = df[cols]
 
     # Rename column
