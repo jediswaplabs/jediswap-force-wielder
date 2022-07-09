@@ -183,6 +183,12 @@ def tweet_to_dict(t, fill_with_nan=False):
             d['text'] = '======= User suspended: No data avaiable! ======='
         return d
 
+    # prevent truncated tweet texts and lesser metadata for retweets:
+    def text_wrapper(raw_tweet):
+        if hasattr(raw_tweet, 'retweeted_status'):
+            return raw_tweet.retweeted_status.full_text
+        else:
+            return raw_tweet['full_text']
 
     # create dictionary of tweet metadata
     d['id'] = t['id_str']
@@ -194,7 +200,7 @@ def tweet_to_dict(t, fill_with_nan=False):
     d['lang'] = t['lang']
     d['was_retweeted'] = t['retweeted']
     d['source'] = t['source']
-    d['text'] = t['text']
+    d['text'] = text_wrapper(t)
     d['truncated'] = t['truncated']
     d['user'] = t['user']
     d['retweet_count'] = t['retweet_count']
@@ -313,7 +319,7 @@ def query_API_for_tweet_obj(_id):
     # If not suspended, try querying API for tweet data
     print(f'\nHad to query API for Tweet {_id}')
     try:
-        tweet_obj = api.get_status(_id)
+        tweet_obj = api.get_status(_id, tweet_mode='extended')
         jsonized = tweet_obj._json
         result = tweet_to_dict(jsonized)
         TWEETS[_id] = result
@@ -683,18 +689,22 @@ def set_reply_flags(df):
 
 def set_mentions_flags(df):
     '''
-    Queries each tweet ID and adds a bool flag if tweet has more than 2 mentions.
+    Queries each tweet ID and adds a bool flag if tweet has more than 2 mentions of unique Twitter handles.
     '''
     def set_flag(t_id):
         global UNAVAILABLE_TWEETS
         if t_id in UNAVAILABLE_TWEETS:
             return ''
         tweet = get_tweet(t_id)
-        n_mentions = len(tweet['entities']['user_mentions'])
-        if n_mentions > 2:
-            return True
-        else:
+        mentions = tweet['entities']['user_mentions']
+        if mentions == []:
             return ''
+        else:
+            unique_handles = {x['screen_name'] for x in mentions}
+            if len(unique_handles) > 2:
+                return True
+            else:
+                return ''
 
     df['3+ mentions'] = df['Tweet ID'].apply(set_flag)
     return df
