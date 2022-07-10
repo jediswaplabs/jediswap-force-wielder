@@ -112,9 +112,14 @@ def fill_missing_data(df):
     df = set_reply_flags(df)
     print(df.shape)
 
-    # Set mentions flag ('3+ mentions' True if contains more than 2 mentions)
+    # Set mentions flag ('3+ mentions' True if contains more than 2 mentions from different users)
     print('Setting flags for tweets mentioning more than 2 accounts...')
     df = set_mentions_flags(df)
+    print(df.shape)
+
+    # Set thread flag ('Follow-up tweet from thread' True if user's tweet is reply to himself)
+    print('Setting flags for follow-up tweets inside threads')
+    df = set_thread_flags(df)
     print(df.shape)
 
     # Calculate Twitter points
@@ -163,22 +168,7 @@ def fill_missing_data(df):
     df['parsed_time'] = pd.to_datetime(df['Timestamp'], infer_datetime_format=True)
     df['Month'] = df['parsed_time'].dt.month_name()
 
-    # Rank total points per month
-    df['Total Points'] = df['Total Points'].replace(' ', np.nan)
-    months = list(df['Month'].unique())
-    for month in months:
-        subset = df.loc[df['Month'] == month]
-        print('subset ' + month + ':', subset.shape)
-        title = str(month) + ' points rank'
-        df[title] = subset['Total Points'].rank(ascending=False)
-    # Replace nans back to empty strings
-    new_cols = [x for x in list(df.columns) if 'points rank' in x]
-    df[new_cols] = df[new_cols].replace(np.nan, '')
-
-    # Set flag for each Twitter handle who posted >5 tweets during any month
-    print('Setting flags for Twitter users with >5 tweets per month...')
-    df = set_many_tweets_flags(df)
-    print(df.shape)
+    # TODO: Flag every tweet after 5 tweets per month per user
 
     return df
 
@@ -194,7 +184,8 @@ def save_csv(df, out_path, sep=',', sort_by=None):
         'Replies', 'Likes', 'Quotes', 'Follower Points', 'Retweet Points',
         'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
         'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '3+ mentions',
-        '>5 tweets per month', 'Red Flag', 'Tweet Preview', 'Month'
+        'Follow-up tweet from thread', 'Tweet #6 or higher per month', 'Red Flag', 'Tweet Preview',
+        'Month'
     ]
     [cols.append(x) for x in list(df.columns) if 'rank' in x]
     cols.append('Comments')
