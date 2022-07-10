@@ -681,6 +681,23 @@ def set_reply_flags(df):
     df['Tweet is reply'] = df['Tweet ID'].apply(set_flag)
     return df
 
+def set_thread_flags(df):
+    '''
+    Queries each tweet ID and adds a bool flag for all tweets out of threads except for the first tweet.
+    '''
+    def set_flag(t_id):
+        global UNAVAILABLE_TWEETS
+        if t_id in UNAVAILABLE_TWEETS:
+            return ''
+        tweet = get_tweet(t_id)
+        if tweet['user']['screen_name'] == tweet['in_reply_to_screen_name']:
+            return True
+        else:
+            return ''
+
+    df['Follow-up tweet from thread'] = df['Tweet ID'].apply(set_flag)
+    return df
+
 def set_mentions_flags(df):
     '''
     Queries each tweet ID and adds a bool flag if tweet has more than 2 mentions.
@@ -714,7 +731,7 @@ def set_many_tweets_flags(df):
     greater_than_5 = monthly_count.loc[monthly_count > 5]
     handles = [x[1] for x in list(greater_than_5.index)]
 
-    df['>5 tweets per month'] = df['Twitter Handle'].apply(set_flag)
+    df['Tweet #6 or higher per month'] = df['Twitter Handle'].apply(set_flag)
     return df
 
 def set_multiple_links_flag(row):
