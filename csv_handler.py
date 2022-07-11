@@ -167,8 +167,11 @@ def fill_missing_data(df):
     # Add column 'Month'
     df['parsed_time'] = pd.to_datetime(df['Timestamp'], infer_datetime_format=True)
     df['Month'] = df['parsed_time'].dt.month_name()
-
-    # TODO: Flag every tweet after 5 tweets per month per user
+    
+    # Flag every tweet after 5 tweets per month per user
+    print('Setting flags for more than 5 tweets per month...')
+    df = set_more_than_5_tweets_flag(df)
+    print(df.shape)
 
     return df
 
@@ -185,10 +188,8 @@ def save_csv(df, out_path, sep=',', sort_by=None):
         'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
         'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '3+ mentions',
         'Follow-up tweet from thread', 'Tweet #6 or higher per month', 'Red Flag', 'Tweet Preview',
-        'Month'
+        'Month', 'Comments'
     ]
-    [cols.append(x) for x in list(df.columns) if 'rank' in x]
-    cols.append('Comments')
     out_df = df[cols]
 
     # Rename column

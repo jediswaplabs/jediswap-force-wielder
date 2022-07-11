@@ -700,6 +700,12 @@ def set_thread_flags(df):
             return True
         else:
             return ''
+        else:
+            unique_handles = {x['screen_name'] for x in mentions}
+            if len(unique_handles) > 2:
+                return True
+            else:
+                return ''
 
     df['Follow-up tweet from thread'] = df['Tweet ID'].apply(set_flag)
     return df
@@ -726,22 +732,31 @@ def set_mentions_flags(df):
     df['3+ mentions'] = df['Tweet ID'].apply(set_flag)
     return df
 
-def set_many_tweets_flags(df):
+def set_more_than_5_tweets_flag(df):
     '''
-    Counts occurence of each twitter handle per month & adds the flag '>5 tweets per month'
-    if it is found more than 5 times in any given month.
+    Counts Twitter handles on a monthly basis.
+    Sets a flag for each tweet observed after 5
+    tweets per month.
     '''
-    def set_flag(handle):
-        if handle in handles:
+    months = list(df['Month'].unique())
+    df['Handle Counter'] = 0
+
+    def set_flag(handle_count):
+        if handle_count > 5:
             return True
         else:
             return ''
 
-    monthly_count = df.groupby(['Month', 'Twitter Handle'])['Twitter Handle'].count()
-    greater_than_5 = monthly_count.loc[monthly_count > 5]
-    handles = [x[1] for x in list(greater_than_5.index)]
+    for month in months:
+        monthly_subset = df.loc[df['Month'] == month]
+        monthly_subset['Handle Counter'] = monthly_subset.groupby('Twitter Handle').cumcount()+1
+        df['Handle Counter'].update(monthly_subset['Handle Counter'])
 
-    df['Tweet #6 or higher per month'] = df['Twitter Handle'].apply(set_flag)
+    # Only count twitter-related submissions
+    non_twitter = df['Non-Twitter Submission'] == True
+    df.loc[non_twitter, 'Handle Counter'] = 0
+    df['Tweet #6 or higher per month'] = df['Handle Counter'].apply(set_flag)
+    
     return df
 
 def set_multiple_links_flag(row):
