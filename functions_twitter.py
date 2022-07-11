@@ -702,6 +702,34 @@ def set_thread_flags(df):
             return True
         else:
             return ''
+        else:
+            unique_handles = {x['screen_name'] for x in mentions}
+            if len(unique_handles) > 2:
+                return True
+            else:
+                return ''
+
+    df['Follow-up tweet from thread'] = df['Tweet ID'].apply(set_flag)
+    return df
+
+def set_mentions_flags(df):
+    '''
+    Queries each tweet ID and adds a bool flag if tweet has more than 2 mentions of unique Twitter handles.
+    '''
+    def set_flag(t_id):
+        global UNAVAILABLE_TWEETS
+        if t_id in UNAVAILABLE_TWEETS:
+            return ''
+        tweet = get_tweet(t_id)
+        mentions = tweet['entities']['user_mentions']
+        if mentions == []:
+            return ''
+        else:
+            unique_handles = {x['screen_name'] for x in mentions}
+            if len(unique_handles) > 2:
+                return True
+            else:
+                return ''
 
     df['Follow-up tweet from thread'] = df['Tweet ID'].apply(set_flag)
     return df
@@ -752,7 +780,7 @@ def set_more_than_5_tweets_flag(df):
     non_twitter = df['Non-Twitter Submission'] == True
     df.loc[non_twitter, 'Handle Counter'] = 0
     df['Tweet #6 or higher per month'] = df['Handle Counter'].apply(set_flag)
-
+    
     return df
 
 def set_multiple_links_flag(row):
