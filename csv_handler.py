@@ -163,6 +163,7 @@ def fill_missing_data(df):
     df['parsed_time'] = pd.to_datetime(df['Timestamp'], infer_datetime_format=True)
     df['Month'] = df['parsed_time'].dt.month_name()
 
+<<<<<<< Updated upstream
     # Rank total points per month
     df['Total Points'] = df['Total Points'].replace(' ', np.nan)
     months = list(df['Month'].unique())
@@ -178,6 +179,11 @@ def fill_missing_data(df):
     # Set flag for each Twitter handle who posted >5 tweets during any month
     print('Setting flags for Twitter users with >5 tweets per month...')
     df = set_many_tweets_flags(df)
+=======
+    # TODO: Flag every tweet after 5 tweets per month per user
+    print('Setting flags for more than 5 tweets per month...')
+    df = set_more_than_5_tweets_flag(df)
+>>>>>>> Stashed changes
     print(df.shape)
 
     return df
@@ -194,10 +200,13 @@ def save_csv(df, out_path, sep=',', sort_by=None):
         'Replies', 'Likes', 'Quotes', 'Follower Points', 'Retweet Points',
         'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
         'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '3+ mentions',
+<<<<<<< Updated upstream
         '>5 tweets per month', 'Red Flag', 'Tweet Preview', 'Month'
+=======
+        'Follow-up tweet from thread', 'Tweet #6 or higher per month', 'Red Flag', 'Tweet Preview',
+        'Month', 'Comments'
+>>>>>>> Stashed changes
     ]
-    [cols.append(x) for x in list(df.columns) if 'rank' in x]
-    cols.append('Comments')
     out_df = df[cols]
 
     # Rename column
