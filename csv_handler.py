@@ -167,11 +167,17 @@ def fill_missing_data(df):
     # Add column 'Month'
     df['parsed_time'] = pd.to_datetime(df['Timestamp'], infer_datetime_format=True)
     df['Month'] = df['parsed_time'].dt.month_name()
-    
+
     # Flag every tweet after 5 tweets per month per user
     print('Setting flags for more than 5 tweets per month...')
     df = set_more_than_5_tweets_flag(df)
     print(df.shape)
+
+    # Add explaining comment if a flag has been triggered and points denied
+    print('Adding explanatory comment wherever points have been denied...')
+    df['Comments'] = df.apply(add_points_denied_comment, axis=1)
+    print(df.shape)
+
 
     return df
 

@@ -1,3 +1,5 @@
+# functions_twitter.py
+
 import os, inspect, json, tweepy
 import numpy as np
 from dotenv import load_dotenv
@@ -729,6 +731,28 @@ def set_mentions_flags(df):
             else:
                 return ''
 
+    df['Follow-up tweet from thread'] = df['Tweet ID'].apply(set_flag)
+    return df
+
+def set_mentions_flags(df):
+    '''
+    Queries each tweet ID and adds a bool flag if tweet has more than 2 mentions of unique Twitter handles.
+    '''
+    def set_flag(t_id):
+        global UNAVAILABLE_TWEETS
+        if t_id in UNAVAILABLE_TWEETS:
+            return ''
+        tweet = get_tweet(t_id)
+        mentions = tweet['entities']['user_mentions']
+        if mentions == []:
+            return ''
+        else:
+            unique_handles = {x['screen_name'] for x in mentions}
+            if len(unique_handles) > 2:
+                return True
+            else:
+                return ''
+
     df['3+ mentions'] = df['Tweet ID'].apply(set_flag)
     return df
 
@@ -854,7 +878,18 @@ def correct_total_p(row):
     else:
         return row['Total Points']
 
-
+def add_points_denied_comment(row):
+    msg_list = []
+    flag_list = ['Duplicate', 'Suspended Twitter User', 'Red Flag']
+    for flag in flag_list:
+        if row[flag] == True:
+            msg_list.append(flag)
+    if msg_list != []:
+        comment = 'No points given. Reason: ' + ', '.join(msg_list)
+        comment.replace('Suspended Twitter User', 'User suspended or tweet deleted')
+        return comment
+    else:
+        return row['Comments']
 
 # Uncomment if TWEETS json file is still empty (if running for first time i.e.)
 #TWEETS = get_tweets(keyword, max_tweets)
