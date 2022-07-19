@@ -1,5 +1,3 @@
-# functions_twitter.py
-
 import os, inspect, json, tweepy
 import numpy as np
 from dotenv import load_dotenv
@@ -282,6 +280,36 @@ def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path):
     write_to_json(TWEETS, tw_p)
     write_to_json(USERS, u_p)
     print(f'Updated {TWEETS_json_path.strip("./")} and {USERS_json_path.strip("./")}')
+
+def get_engagement_batchwise(tweet_id_list, chunk_size=100):
+    '''
+    Takes list of tweet ids, returns a dictionary of shape
+    {tweet_id: (n_retweets, n_replies, n_likes, n_quotes)}.
+    '''
+
+    def grouper(iterable, n, fillvalue=None):
+        args = [iter(iterable)] * n
+        result = zip_longest(*args, fillvalue=fillvalue)
+        return [list(x) for x in result]
+
+    def transform(metrics):
+        return (metrics['retweet_count'],
+                metrics['reply_count'],
+                metrics['like_count'],
+                metrics['quote_count']
+                )
+
+    chunked_ids = grouper(tweet_id_list, chunk_size)
+    out_dict = {}
+
+    for chunk in chunked_ids:
+        chunk = [x for x in chunk if x != None]
+        response = client.get_tweets(chunk, tweet_fields=['id', 'public_metrics'])
+        to_add = {x['id']: transform(x['public_metrics']) for x in response[0]}
+        out_dict.update(to_add)
+
+    return out_dict
+
 
 
 
@@ -702,34 +730,6 @@ def set_thread_flags(df):
             return True
         else:
             return ''
-        else:
-            unique_handles = {x['screen_name'] for x in mentions}
-            if len(unique_handles) > 2:
-                return True
-            else:
-                return ''
-
-    df['Follow-up tweet from thread'] = df['Tweet ID'].apply(set_flag)
-    return df
-
-def set_mentions_flags(df):
-    '''
-    Queries each tweet ID and adds a bool flag if tweet has more than 2 mentions of unique Twitter handles.
-    '''
-    def set_flag(t_id):
-        global UNAVAILABLE_TWEETS
-        if t_id in UNAVAILABLE_TWEETS:
-            return ''
-        tweet = get_tweet(t_id)
-        mentions = tweet['entities']['user_mentions']
-        if mentions == []:
-            return ''
-        else:
-            unique_handles = {x['screen_name'] for x in mentions}
-            if len(unique_handles) > 2:
-                return True
-            else:
-                return ''
 
     df['Follow-up tweet from thread'] = df['Tweet ID'].apply(set_flag)
     return df
@@ -780,7 +780,7 @@ def set_more_than_5_tweets_flag(df):
     non_twitter = df['Non-Twitter Submission'] == True
     df.loc[non_twitter, 'Handle Counter'] = 0
     df['Tweet #6 or higher per month'] = df['Handle Counter'].apply(set_flag)
-    
+
     return df
 
 def set_multiple_links_flag(row):
