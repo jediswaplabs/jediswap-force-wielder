@@ -274,13 +274,6 @@ def get_suspended_tweets(tweet_id_list):
 
     return list(suspended_tweet_ids)
 
-def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path):
-    global TWEETS
-    global USERS
-    write_to_json(TWEETS, tw_p)
-    write_to_json(USERS, u_p)
-    print(f'Updated {TWEETS_json_path.strip("./")} and {USERS_json_path.strip("./")}')
-
 def get_engagement_batchwise(tweet_id_list, chunk_size=100):
     '''
     Takes list of tweet ids, returns a dictionary of shape
@@ -309,6 +302,34 @@ def get_engagement_batchwise(tweet_id_list, chunk_size=100):
         out_dict.update(to_add)
 
     return out_dict
+
+def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path):
+    global TWEETS
+    global USERS
+    write_to_json(TWEETS, tw_p)
+    write_to_json(USERS, u_p)
+    print(f'Updated {TWEETS_json_path.strip("./")} and {USERS_json_path.strip("./")}')
+
+def update_engagement_memo(tweet_ids, eng_dict_path=engagement_dict_path, chunk_size=100):
+    '''
+    Wrapper function for get_engagement_batchwise(). Queries Twitter client in chunks
+    of 100 tweet IDs (allowed maximum) for engagement metrics (retweets, replies, likes, quotes).
+    Updates the local json file as specified in {eng_dict_path}.
+    Returns dictionary of gathered data (for debugging only).
+    '''
+
+    # Query for engagement data
+    print(f'Updating {eng_dict_path.lstrip("./")} with up-to-date tweet engagement metrics...')
+    engagement_dict = get_engagement_batchwise(tweet_ids, chunk_size=chunk_size)
+
+    # Update local memo file
+    eng_dict_path = eng_dict_path+'TEST'
+    write_to_json(engagement_dict, eng_dict_path)
+    print(f'Successfully updated {eng_dict_path.lstrip("./")}.')
+    print(f'Engagement data for {len(engagement_dict)} tweets updated.')
+
+    return engagement_dict
+
 
 
 

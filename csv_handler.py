@@ -52,6 +52,10 @@ def fill_missing_data(df):
     df['Tweet ID'] = df[ 'Submit a Link to your tweet, video or article'].str.extract('(?<=status/)(\d{19})', expand=True)
     print(df.shape)
 
+    # Update engagement metrics memo file
+    tweet_ids = [x for x in list(df['Tweet ID'].unique()) if x is not np.nan]
+    update_engagement_memo(tweet_ids)
+
     # Flag Non-Twitter Submissions (where no Tweet ID can be grabbed)
     df['Non-Twitter Submission'] = df['Tweet ID'].apply(check_for_nan)
 
