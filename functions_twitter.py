@@ -757,7 +757,7 @@ def set_thread_flags(df):
 
 def set_mentions_flags(df):
     '''
-    Queries each tweet ID and adds a bool flag if tweet has more than 2 mentions of unique Twitter handles.
+    Queries each tweet ID and adds a bool flag if tweet has more than 5 mentions of unique Twitter handles.
     '''
     def set_flag(t_id):
         global UNAVAILABLE_TWEETS
@@ -769,12 +769,13 @@ def set_mentions_flags(df):
             return ''
         else:
             unique_handles = {x['screen_name'] for x in mentions}
-            if len(unique_handles) > 2:
+            if len(unique_handles) > 5:
                 return True
             else:
                 return ''
 
-    df['3+ mentions'] = df['Tweet ID'].apply(set_flag)
+    df['>5 mentions'] = df['Tweet ID'].apply(set_flag)
+    
     return df
 
 

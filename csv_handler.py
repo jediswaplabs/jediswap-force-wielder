@@ -116,7 +116,7 @@ def fill_missing_data(df):
     df = set_reply_flags(df)
     print(df.shape)
 
-    # Set mentions flag ('3+ mentions' True if contains more than 2 mentions from different users)
+    # Set mentions flag ('>5 mentions' True if contains more than 2 mentions from different users)
     print('Setting flags for tweets mentioning more than 2 accounts...')
     df = set_mentions_flags(df)
     print(df.shape)
@@ -195,7 +195,7 @@ def save_csv(df, out_path, sep=',', sort_by=None):
         'Wallet', 'Followers', 'Retweets',
         'Replies', 'Likes', 'Quotes', 'Follower Points', 'Retweet Points',
         'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
-        'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '3+ mentions',
+        'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '>5 mentions',
         'Follow-up tweet from thread', 'Tweet #6 or higher per month', 'Red Flag', 'Tweet Preview',
         'Month', 'Comments'
     ]
