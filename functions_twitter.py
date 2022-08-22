@@ -775,7 +775,7 @@ def set_mentions_flags(df):
                 return ''
 
     df['>5 mentions'] = df['Tweet ID'].apply(set_flag)
-    
+
     return df
 
 
@@ -903,7 +903,8 @@ def correct_total_p(row):
         row['Duplicate'] == True) or (
         row['Red Flag'] == True) or(
         row['Non-Twitter Submission'] == True) or (
-        row['Tweet #6 or higher per month'] == True):
+        row['Tweet #6 or higher per month'] == True) or (
+        row['Tweet is reply'] == True):
         return 0
     else:
         return row['Total Points']
@@ -912,7 +913,7 @@ def add_points_denied_comment(row):
     msg_list = []
     flag_list = [
         'Duplicate', 'Suspended Twitter User', 'Red Flag', 'Non-Twitter Submission',
-        'Multiple links submitted', 'Tweet #6 or higher per month'
+        'Multiple links submitted', 'Tweet #6 or higher per month', 'Tweet is reply'
         ]
     for flag in flag_list:
         if row[flag] == True:
