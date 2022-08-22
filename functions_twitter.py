@@ -775,6 +775,7 @@ def set_mentions_flags(df):
                 return ''
 
     df['>5 mentions'] = df['Tweet ID'].apply(set_flag)
+
     return df
 
 
