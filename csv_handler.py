@@ -46,15 +46,18 @@ def fill_missing_data(df):
     data = load_csv(in_csv, sep='\t')
     df = data.copy()
     print(df.shape)
-    
+
     # Grab Tweet ID out of link and add as new column
     print('\n\tExtracting Tweet ID using regex...')
     df['Tweet ID'] = df[ 'Submit a Link to your tweet, video or article'].str.extract('(?<=status/)(\d{19})', expand=True)
     print(df.shape)
-    
+
     # Update engagement metrics memo file
     tweet_ids = [x for x in list(df['Tweet ID'].unique()) if x is not np.nan]
     update_engagement_memo(tweet_ids)
+
+    # Expand truncated tweets contained in TWEETS global variable
+    expand_truncated(list(TWEETS.keys()))
 
     # Flag Non-Twitter Submissions (where no Tweet ID can be grabbed)
     df['Non-Twitter Submission'] = df['Tweet ID'].apply(check_for_nan)
@@ -116,16 +119,16 @@ def fill_missing_data(df):
     df = set_reply_flags(df)
     print(df.shape)
 
-    # Set mentions flag ('3+ mentions' True if contains more than 2 mentions from different users)
+    # Set mentions flag ('>5 mentions' True if contains more than 2 mentions from different users)
     print('Setting flags for tweets mentioning more than 2 accounts...')
     df = set_mentions_flags(df)
     print(df.shape)
-    
+
     # Set thread flag ('Follow-up tweet from thread' True if user's tweet is reply to himself)
     print('Setting flags for follow-up tweets inside threads')
     df = set_thread_flags(df)
     print(df.shape)
-    
+
     # Calculate Twitter points
     print('Calculating Force Wielder points...')
     df['Follower Points'] = df.apply(lambda x: follower_points_formula(
@@ -152,22 +155,16 @@ def fill_missing_data(df):
 
     # Set flag if 1 valid twitter link + additional link have been submitted
     df['Multiple links submitted'] = df.apply(set_multiple_links_flag, axis=1)
-    
+
     # Add comment 'Please submit each link as a single entry' if multiple links flag set
     df['Comments'] = ' '
     df['Comments'] = df.apply(add_multiple_links_comment, axis=1)
-    
-    # No points for duplicate entries, [invalid links], suspended users, or multiple links submitted
-    df['Follower Points'] = df.apply(correct_follower_p, axis=1)
-    df['Retweet Points'] = df.apply(correct_retweet_p, axis=1)
-    df['Total Points'] = df.apply(correct_total_p, axis=1)
-    # correct_total_p() is ignoring non-twitter submissions!
 
     # Add '@' to every Twitter handle (except if entry is nan)
     not_nan = df['Twitter Handle'].notnull()
     df.loc[not_nan, 'Twitter Handle'] = ('@' + df.loc[not_nan]['Twitter Handle'])
     df.head()
-    
+
     # Add column 'Month'
     df['parsed_time'] = pd.to_datetime(df['Timestamp'], infer_datetime_format=True)
     df['Month'] = df['parsed_time'].dt.month_name()
@@ -176,13 +173,22 @@ def fill_missing_data(df):
     print('Setting flags for more than 5 tweets per month...')
     df = set_more_than_5_tweets_flag(df)
     print(df.shape)
-    
+
+    # Set flag to determine if tweet is unrelated to JediSwap
+    df['contains jediswap'] = df['Tweet ID'].apply(set_contains_jediswap_flag)
+    df['quotes jediswap'] = df['Tweet ID'].apply(set_jediswap_quote_flag)
+    df['Unrelated to JediSwap'] = df.apply(check_if_unrelated, axis=1)
+
+    # No points for duplicate entries, [invalid links], suspended users, or multiple links submitted
+    df['Follower Points'] = df.apply(correct_follower_p, axis=1)
+    df['Retweet Points'] = df.apply(correct_retweet_p, axis=1)
+    df['Total Points'] = df.apply(correct_total_p, axis=1)
+
     # Add explaining comment if a flag has been triggered and points denied
     print('Adding explanatory comment wherever points have been denied...')
     df['Comments'] = df.apply(add_points_denied_comment, axis=1)
     print(df.shape)
 
-    
     return df
 
 def save_csv(df, out_path, sep=',', sort_by=None):
@@ -196,9 +202,9 @@ def save_csv(df, out_path, sep=',', sort_by=None):
         'Wallet', 'Followers', 'Retweets',
         'Replies', 'Likes', 'Quotes', 'Follower Points', 'Retweet Points',
         'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
-        'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '3+ mentions',
-        'Follow-up tweet from thread', 'Tweet #6 or higher per month', 'Red Flag', 'Tweet Preview',
-        'Month', 'Comments'
+        'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '>5 mentions',
+        'Follow-up tweet from thread', 'Tweet #6 or higher per month', 'Unrelated to JediSwap',
+        'Red Flag', 'Tweet Preview', 'Month', 'Comments'
     ]
     out_df = df[cols]
 
@@ -219,10 +225,9 @@ def save_csv(df, out_path, sep=',', sort_by=None):
         out_df[sort_by] = out_df[sort_by].apply(switch_nan)
         out_df = out_df.sort_values(sort_by, ascending=False)
         out_df[sort_by] = out_df[sort_by].apply(safe_to_int)
-        
+
     # Save to csv
     out_df.to_csv(out_path, sep=sep, index=False)
     print('Csv saved as', out_path)
 
     return out_df
-
