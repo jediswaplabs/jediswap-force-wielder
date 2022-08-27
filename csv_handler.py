@@ -56,6 +56,9 @@ def fill_missing_data(df):
     tweet_ids = [x for x in list(df['Tweet ID'].unique()) if x is not np.nan]
     update_engagement_memo(tweet_ids)
 
+    # Expand truncated tweets contained in TWEETS global variable
+    expand_truncated(list(TWEETS.keys()))
+
     # Flag Non-Twitter Submissions (where no Tweet ID can be grabbed)
     df['Non-Twitter Submission'] = df['Tweet ID'].apply(check_for_nan)
 
@@ -171,6 +174,11 @@ def fill_missing_data(df):
     df = set_more_than_5_tweets_flag(df)
     print(df.shape)
 
+    # Set flag to determine if tweet is unrelated to JediSwap
+    df['contains jediswap'] = df['Tweet ID'].apply(set_contains_jediswap_flag)
+    df['quotes jediswap'] = df['Tweet ID'].apply(set_jediswap_quote_flag)
+    df['Unrelated to JediSwap'] = df.apply(check_if_unrelated, axis=1)
+
     # No points for duplicate entries, [invalid links], suspended users, or multiple links submitted
     df['Follower Points'] = df.apply(correct_follower_p, axis=1)
     df['Retweet Points'] = df.apply(correct_retweet_p, axis=1)
@@ -180,7 +188,6 @@ def fill_missing_data(df):
     print('Adding explanatory comment wherever points have been denied...')
     df['Comments'] = df.apply(add_points_denied_comment, axis=1)
     print(df.shape)
-
 
     return df
 
@@ -196,8 +203,8 @@ def save_csv(df, out_path, sep=',', sort_by=None):
         'Replies', 'Likes', 'Quotes', 'Follower Points', 'Retweet Points',
         'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
         'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '>5 mentions',
-        'Follow-up tweet from thread', 'Tweet #6 or higher per month', 'Red Flag', 'Tweet Preview',
-        'Month', 'Comments'
+        'Follow-up tweet from thread', 'Tweet #6 or higher per month', 'Unrelated to JediSwap',
+        'Red Flag', 'Tweet Preview', 'Month', 'Comments'
     ]
     out_df = df[cols]
 

@@ -303,6 +303,50 @@ def get_engagement_batchwise(tweet_id_list, chunk_size=100):
 
     return out_dict
 
+def expand_truncated(tweet_ids):
+    '''
+    Searches for truncated = True within list of tweet ids.
+    Queries for full text of tweet, updates TWEETS global var
+    and saves updated version to json.
+    '''
+    global TWEETS
+    successfully_expanded = 0
+    id_text_tups = []
+
+    def grouper(iterable, n, fillvalue=None):
+        args = [iter(iterable)] * n
+        result = zip_longest(*args, fillvalue=fillvalue)
+        return [list(x) for x in result]
+
+    truncated = [x for x in tweet_ids if get_tweet(x)['truncated']]
+    print(f'Found {len(truncated)} truncated tweets. Attempting to expand them...')
+
+    # Query client for full texts
+    chunked_ids = grouper(truncated, 100)
+
+    for chunk in chunked_ids:
+        chunk = [x for x in chunk if x != None]
+        print('chunk size:', len(chunk))
+        t_fields = ['attachments', 'author_id', 'context_annotations', 'conversation_id', 'created_at',
+                'entities', 'geo', 'id', 'in_reply_to_user_id', 'lang', 'public_metrics',
+                'referenced_tweets', 'reply_settings', 'source', 'text', 'withheld']
+        response = client.get_tweets(chunk, tweet_fields=t_fields)
+        [id_text_tups.append((str(t['id']), t['text'])) for t in response.data]
+
+    # Save full texts to TWEETS global var
+    for tup in id_text_tups:
+        old_len = len(TWEETS[tup[0]]['text'])
+        if old_len == len(tup[1]):
+            continue
+        TWEETS[tup[0]]['text'] = tup[1]
+        new_len = len(TWEETS[tup[0]]['text'])
+        if old_len < new_len:
+            successfully_expanded += 1
+
+    print(f'Successfully added the full text to {successfully_expanded} truncated tweets.')
+    return truncated
+
+
 def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path):
     global TWEETS
     global USERS
@@ -870,6 +914,46 @@ def set_red_flag(_id, trigger='airdrop'):
     else:
         return ' '
 
+def set_contains_jediswap_flag(_id, trigger='jediswap'):
+    content = get_text(_id).lower()
+    if trigger in content:
+        return True
+    else:
+        return ' '
+
+def set_jediswap_quote_flag(_id):
+#    print('Checking for id', _id)
+    t = get_tweet(_id)
+#    print('type of tweet object:', type(t))
+#    print('tweet object:', t)
+    # Catch TypeError for suspended users (nan values everywhere)
+    if type(t['entities']) != dict:
+        return ' '
+
+    urls = t['entities']['urls']
+    jediswap_quotes = [x for x in urls if 'jediswap' in x['expanded_url'].lower()]
+    if jediswap_quotes != []:
+        return True
+    else:
+        return ' '
+
+def check_if_unrelated(row):
+    if (row['Non-Twitter Submission'] == True) or (
+            row['Suspended Twitter User'] == True) or (
+                row['Twitter Handle'] == '@JediSwap'):
+        return ' '
+
+    elif (row['contains jediswap'] != True) and (
+            row['quotes jediswap'] != True):
+        return True
+    else:
+        return ' '
+
+
+
+
+
+
 def row_handler(row):
     if (row['Suspended Twitter User'] == True) or (
         row['Non-Twitter Submission'] == True):
@@ -904,7 +988,8 @@ def correct_total_p(row):
         row['Red Flag'] == True) or(
         row['Non-Twitter Submission'] == True) or (
         row['Tweet #6 or higher per month'] == True) or (
-        row['Tweet is reply'] == True):
+        row['Tweet is reply'] == True) or (
+        row['Unrelated to JediSwap'] == True):
         return 0
     else:
         return row['Total Points']
@@ -913,7 +998,8 @@ def add_points_denied_comment(row):
     msg_list = []
     flag_list = [
         'Duplicate', 'Suspended Twitter User', 'Red Flag', 'Non-Twitter Submission',
-        'Multiple links submitted', 'Tweet #6 or higher per month', 'Tweet is reply'
+        'Multiple links submitted', 'Tweet #6 or higher per month', 'Tweet is reply',
+        'Unrelated to JediSwap'
         ]
     for flag in flag_list:
         if row[flag] == True:
