@@ -854,7 +854,7 @@ def set_more_than_5_tweets_flag(df):
     non_twitter = df['Non-Twitter Submission'] == True
     df.loc[non_twitter, 'Handle Counter'] = 0
     df['Tweet #6 or higher per month'] = df['Handle Counter'].apply(set_flag)
-
+    
     return df
 
 
