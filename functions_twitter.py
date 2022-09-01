@@ -180,7 +180,7 @@ def tweet_to_dict(t, fill_with_nan=False):
         for k in keys:
             d[k] = np.nan
             d['id'] = t    # id is taken from first arg in case of a querying error!
-            d['text'] = '======= User suspended: No data avaiable! ======='
+            d['text'] = '======= No data avaiable! Possibly due to country-specific age-restriction block by API ======='
         return d
 
     # prevent truncated tweet texts and lesser metadata for retweets:
@@ -426,8 +426,12 @@ def query_API_for_tweet_obj(_id):
         print('Caught an exception for this one:')
 
         if isinstance(e, tweepy.errors.NotFound):
+            print('Exception:', e)
             print(f'No data available for tweet id {_id}')
-            print('Tweet older than 1 week?')
+            link = 'www.twitter.com/i/web/status/'+str(_id)
+            print('\nCountry-specific age-restriction block? Check manually:')
+            print(link)
+            print('\n')
             UNAVAILABLE_TWEETS.add(_id)
             print(f'{_id} added to UNAVAILABLE_TWEETS')
             return tweet_to_dict(_id, fill_with_nan=True)
@@ -850,8 +854,7 @@ def set_more_than_5_tweets_flag(df):
     non_twitter = df['Non-Twitter Submission'] == True
     df.loc[non_twitter, 'Handle Counter'] = 0
     df['Tweet #6 or higher per month'] = df['Handle Counter'].apply(set_flag)
-    df['Total Points'] = df['Total Points'].replace(0, ' ')
-
+    
     return df
 
 
@@ -900,7 +903,7 @@ def retweet_points_formula(n_retweets, n_quotes, duplicate, inval_link):
 
 def safe_to_int(val):
     '''
-    Coverts float to int. Converts np.nan to ' '.
+    Coverts float to int and str or np.nan to ' '.
     '''
     if isinstance(val, str) or np.isnan(float(val)):
         return ' '
@@ -922,10 +925,7 @@ def set_contains_jediswap_flag(_id, trigger='jediswap'):
         return ' '
 
 def set_jediswap_quote_flag(_id):
-#    print('Checking for id', _id)
     t = get_tweet(_id)
-#    print('type of tweet object:', type(t))
-#    print('tweet object:', t)
     # Catch TypeError for suspended users (nan values everywhere)
     if type(t['entities']) != dict:
         return ' '
@@ -948,11 +948,6 @@ def check_if_unrelated(row):
         return True
     else:
         return ' '
-
-
-
-
-
 
 def row_handler(row):
     if (row['Suspended Twitter User'] == True) or (
@@ -1012,7 +1007,7 @@ def add_points_denied_comment(row):
     else:
         return row['Comments']
 
-# Uncomment if TWEETS json file is still empty (if running for first time i.e.)
+# Uncomment if TWEETS json file is empty (if running for first time i.e.)
 #TWEETS = get_tweets(keyword, max_tweets)
 
 # Populate memo variables with past known jediswap tweets (TWEETS) and their users

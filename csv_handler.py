@@ -170,6 +170,7 @@ def fill_missing_data(df):
     df['Month'] = df['parsed_time'].dt.month_name()
 
     # Flag every tweet in excess of the 5 tweets with top points per user per month
+    # Caution: Replaces 'Total Points' value ' ' with 0
     print('Setting flags for more than 5 tweets per month...')
     df = set_more_than_5_tweets_flag(df)
     print(df.shape)
