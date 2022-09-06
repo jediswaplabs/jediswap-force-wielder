@@ -180,15 +180,15 @@ def tweet_to_dict(t, fill_with_nan=False):
         for k in keys:
             d[k] = np.nan
             d['id'] = t    # id is taken from first arg in case of a querying error!
-            d['text'] = '======= User suspended: No data avaiable! ======='
+            d['text'] = '======= No data avaiable! Possibly due to country-specific age-restriction block by API ======='
         return d
-    
+
     # prevent truncated tweet texts and lesser metadata for retweets:
     def text_wrapper(raw_tweet):
         if hasattr(raw_tweet, 'retweeted_status'):
             return raw_tweet.retweeted_status.full_text
         else:
-            return raw_tweet['full_text']    
+            return raw_tweet['full_text']
 
     # create dictionary of tweet metadata
     d['id'] = t['id_str']
@@ -212,7 +212,7 @@ def tweet_to_dict(t, fill_with_nan=False):
     d['favorited_bool'] = t['favorited']
     d['in_reply_to_status_id'] = t['in_reply_to_status_id']
 
-    
+
     return d
 
 def user_to_dict(user_status, fill_with_nan=False):
@@ -265,7 +265,7 @@ def get_suspended_tweets(tweet_id_list):
 
     chunked_ids = grouper(tweet_id_list, 100)
     suspended_tweet_ids = set()
-    
+
     for chunk in chunked_ids:
         chunk = [x for x in chunk if x != None]
         response = client.get_tweets(chunk)
@@ -279,7 +279,7 @@ def get_engagement_batchwise(tweet_id_list, chunk_size=100):
     Takes list of tweet ids, returns a dictionary of shape
     {tweet_id: (n_retweets, n_replies, n_likes, n_quotes)}.
     '''
-    
+
     def grouper(iterable, n, fillvalue=None):
         args = [iter(iterable)] * n
         result = zip_longest(*args, fillvalue=fillvalue)
@@ -289,9 +289,9 @@ def get_engagement_batchwise(tweet_id_list, chunk_size=100):
         return (metrics['retweet_count'],
                 metrics['reply_count'],
                 metrics['like_count'],
-                metrics['quote_count'] 
+                metrics['quote_count']
                 )
-    
+
     chunked_ids = grouper(tweet_id_list, chunk_size)
     out_dict = {}
 
@@ -300,8 +300,52 @@ def get_engagement_batchwise(tweet_id_list, chunk_size=100):
         response = client.get_tweets(chunk, tweet_fields=['id', 'public_metrics'])
         to_add = {x['id']: transform(x['public_metrics']) for x in response[0]}
         out_dict.update(to_add)
-        
+
     return out_dict
+
+def expand_truncated(tweet_ids):
+    '''
+    Searches for truncated = True within list of tweet ids.
+    Queries for full text of tweet, updates TWEETS global var
+    and saves updated version to json.
+    '''
+    global TWEETS
+    successfully_expanded = 0
+    id_text_tups = []
+
+    def grouper(iterable, n, fillvalue=None):
+        args = [iter(iterable)] * n
+        result = zip_longest(*args, fillvalue=fillvalue)
+        return [list(x) for x in result]
+
+    truncated = [x for x in tweet_ids if get_tweet(x)['truncated']]
+    print(f'Found {len(truncated)} truncated tweets. Attempting to expand them...')
+
+    # Query client for full texts
+    chunked_ids = grouper(truncated, 100)
+
+    for chunk in chunked_ids:
+        chunk = [x for x in chunk if x != None]
+        print('chunk size:', len(chunk))
+        t_fields = ['attachments', 'author_id', 'context_annotations', 'conversation_id', 'created_at',
+                'entities', 'geo', 'id', 'in_reply_to_user_id', 'lang', 'public_metrics',
+                'referenced_tweets', 'reply_settings', 'source', 'text', 'withheld']
+        response = client.get_tweets(chunk, tweet_fields=t_fields)
+        [id_text_tups.append((str(t['id']), t['text'])) for t in response.data]
+
+    # Save full texts to TWEETS global var
+    for tup in id_text_tups:
+        old_len = len(TWEETS[tup[0]]['text'])
+        if old_len == len(tup[1]):
+            continue
+        TWEETS[tup[0]]['text'] = tup[1]
+        new_len = len(TWEETS[tup[0]]['text'])
+        if old_len < new_len:
+            successfully_expanded += 1
+
+    print(f'Successfully added the full text to {successfully_expanded} truncated tweets.')
+    return truncated
+
 
 def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path):
     global TWEETS
@@ -309,7 +353,7 @@ def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path):
     write_to_json(TWEETS, tw_p)
     write_to_json(USERS, u_p)
     print(f'Updated {TWEETS_json_path.strip("./")} and {USERS_json_path.strip("./")}')
-    
+
 def update_engagement_memo(tweet_ids, eng_dict_path=engagement_dict_path, chunk_size=100):
     '''
     Wrapper function for get_engagement_batchwise(). Queries Twitter client in chunks
@@ -317,17 +361,16 @@ def update_engagement_memo(tweet_ids, eng_dict_path=engagement_dict_path, chunk_
     Updates the local json file as specified in {eng_dict_path}.
     Returns dictionary of gathered data (for debugging only).
     '''
-    
+
     # Query for engagement data
     print(f'Updating {eng_dict_path.lstrip("./")} with up-to-date tweet engagement metrics...')
     engagement_dict = get_engagement_batchwise(tweet_ids, chunk_size=chunk_size)
-    
+
     # Update local memo file
-    eng_dict_path = eng_dict_path+'TEST'
     write_to_json(engagement_dict, eng_dict_path)
     print(f'Successfully updated {eng_dict_path.lstrip("./")}.')
     print(f'Engagement data for {len(engagement_dict)} tweets updated.')
-    
+
     return engagement_dict
 
 
@@ -382,8 +425,12 @@ def query_API_for_tweet_obj(_id):
         print('Caught an exception for this one:')
 
         if isinstance(e, tweepy.errors.NotFound):
+            print('Exception:', e)
             print(f'No data available for tweet id {_id}')
-            print('Tweet older than 1 week?')
+            link = 'www.twitter.com/i/web/status/'+str(_id)
+            print('\nCountry-specific age-restriction block? Check manually:')
+            print(link)
+            print('\n')
             UNAVAILABLE_TWEETS.add(_id)
             print(f'{_id} added to UNAVAILABLE_TWEETS')
             return tweet_to_dict(_id, fill_with_nan=True)
@@ -718,13 +765,13 @@ def update_suspension_flags(df):
 
     # Add flag to df for each tweet id from a suspended account
     df['Suspended Twitter User'] = df['Tweet ID'].apply(flag_as_suspended)
-    return df    
+    return df
 
 def set_reply_flags(df):
     '''
     Queries each tweet ID and adds a bool flag if tweet is a reply.
     '''
-    def set_flag(t_id): 
+    def set_flag(t_id):
         global UNAVAILABLE_TWEETS
         if t_id in UNAVAILABLE_TWEETS:
             return ''
@@ -736,30 +783,31 @@ def set_reply_flags(df):
             return True
 
     df['Tweet is reply'] = df['Tweet ID'].apply(set_flag)
-    return df 
+    return df
 
 def set_thread_flags(df):
     '''
     Queries each tweet ID and adds a bool flag for all tweets out of threads except for the first tweet.
     '''
-    def set_flag(t_id): 
+    def set_flag(t_id):
         global UNAVAILABLE_TWEETS
         if t_id in UNAVAILABLE_TWEETS:
             return ''
         tweet = get_tweet(t_id)
-        if tweet['user']['screen_name'] == tweet['in_reply_to_screen_name']:
+        if (tweet['user']['screen_name'] == tweet['in_reply_to_screen_name']) and (
+            tweet['in_reply_to_status_id'] != None):
             return True
         else:
             return ''
 
     df['Follow-up tweet from thread'] = df['Tweet ID'].apply(set_flag)
-    return df 
+    return df
 
 def set_mentions_flags(df):
     '''
-    Queries each tweet ID and adds a bool flag if tweet has more than 2 mentions of unique Twitter handles.
+    Queries each tweet ID and adds a bool flag if tweet has more than 5 mentions of unique Twitter handles.
     '''
-    def set_flag(t_id): 
+    def set_flag(t_id):
         global UNAVAILABLE_TWEETS
         if t_id in UNAVAILABLE_TWEETS:
             return ''
@@ -769,44 +817,44 @@ def set_mentions_flags(df):
             return ''
         else:
             unique_handles = {x['screen_name'] for x in mentions}
-            if len(unique_handles) > 2:
+            if len(unique_handles) > 5:
                 return True
             else:
                 return ''
-    
-    df['3+ mentions'] = df['Tweet ID'].apply(set_flag)
-    return df 
+
+    df['>5 mentions'] = df['Tweet ID'].apply(set_flag)
+
+    return df
 
 
 def set_more_than_5_tweets_flag(df):
     '''
-    Adds a column 'Tweet #6 or higher per month' to the dataset.     
+    Adds a column 'Tweet #6 or higher per month' to the dataset.
     Copies the dataset and sorts it by total points. Iterates through rows and keeps count
     of each twitter handle. Flags every 6th or higher occurence of this handle.
     '''
-    
+
     df['Total Points'] = df['Total Points'].replace(' ', 0)
     months = list(df['Month'].unique())
     df['Handle Counter'] = 0
-    
+
     def set_flag(handle_count):
         if handle_count > 5:
             return True
         else:
             return ''
-    
+
     for month in months:
         monthly_subset = df.loc[df['Month'] == month]
         sorted_by_points = monthly_subset.sort_values('Total Points', ascending=False)
         sorted_by_points['Handle Counter'] = sorted_by_points.groupby('Twitter Handle').cumcount()+1
         df['Handle Counter'].update(sorted_by_points['Handle Counter'])
-        
+
     # Only count twitter-related submissions
     non_twitter = df['Non-Twitter Submission'] == True
     df.loc[non_twitter, 'Handle Counter'] = 0
     df['Tweet #6 or higher per month'] = df['Handle Counter'].apply(set_flag)
-    df['Total Points'] = df['Total Points'].replace(0, ' ')
-    
+
     return df
 
 
@@ -855,7 +903,7 @@ def retweet_points_formula(n_retweets, n_quotes, duplicate, inval_link):
 
 def safe_to_int(val):
     '''
-    Coverts float to int. Converts np.nan to ' '.
+    Coverts float to int and str or np.nan to ' '.
     '''
     if isinstance(val, str) or np.isnan(float(val)):
         return ' '
@@ -865,6 +913,38 @@ def safe_to_int(val):
 def set_red_flag(_id, trigger='airdrop'):
     content = get_text(_id)
     if trigger in content:
+        return True
+    else:
+        return ' '
+
+def set_contains_jediswap_flag(_id, trigger='jediswap'):
+    content = get_text(_id).lower()
+    if trigger in content:
+        return True
+    else:
+        return ' '
+
+def set_jediswap_quote_flag(_id):
+    t = get_tweet(_id)
+    # Catch TypeError for suspended users (nan values everywhere)
+    if type(t['entities']) != dict:
+        return ' '
+
+    urls = t['entities']['urls']
+    jediswap_quotes = [x for x in urls if 'jediswap' in x['expanded_url'].lower()]
+    if jediswap_quotes != []:
+        return True
+    else:
+        return ' '
+
+def check_if_unrelated(row):
+    if (row['Non-Twitter Submission'] == True) or (
+            row['Suspended Twitter User'] == True) or (
+                row['Twitter Handle'] == '@JediSwap'):
+        return ' '
+
+    elif (row['contains jediswap'] != True) and (
+            row['quotes jediswap'] != True):
         return True
     else:
         return ' '
@@ -900,20 +980,29 @@ def correct_total_p(row):
     if (row['Suspended Twitter User'] == True) or (
         row['Multiple links submitted'] == True) or (
         row['Duplicate'] == True) or (
-        row['Red Flag'] == True):
-        return ' '
+        row['Red Flag'] == True) or(
+        row['Non-Twitter Submission'] == True) or (
+        row['Tweet #6 or higher per month'] == True) or (
+        row['Tweet is reply'] == True) or (
+        row['Unrelated to JediSwap'] == True):
+        return 0
     else:
         return row['Total Points']
 
 def add_points_denied_comment(row):
     msg_list = []
-    flag_list = ['Duplicate', 'Suspended Twitter User', 'Red Flag']
+    flag_list = [
+        'Duplicate', 'Suspended Twitter User', 'Red Flag', 'Non-Twitter Submission',
+        'Multiple links submitted', 'Tweet #6 or higher per month', 'Tweet is reply',
+        'Unrelated to JediSwap'
+        ]
     for flag in flag_list:
         if row[flag] == True:
             msg_list.append(flag)
     if msg_list != []:
         comment = 'No points given. Reason: ' + ', '.join(msg_list)
-        comment.replace('Suspended Twitter User', 'User suspended or tweet deleted')
+        comment = comment.replace('Suspended Twitter User', 'User suspended or tweet deleted')
+        comment = comment.replace('Non-Twitter Submission', 'Not a tweet')
         return comment
     else:
         return row['Comments']
