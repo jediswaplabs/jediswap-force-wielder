@@ -1007,7 +1007,7 @@ def add_points_denied_comment(row):
     else:
         return row['Comments']
 
-# Uncomment if TWEETS json file is still empty (if running for first time i.e.)
+# Uncomment if TWEETS json file is empty (if running for first time i.e.)
 #TWEETS = get_tweets(keyword, max_tweets)
 
 # Populate memo variables with past known jediswap tweets (TWEETS) and their users
