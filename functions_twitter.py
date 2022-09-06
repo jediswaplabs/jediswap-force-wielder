@@ -367,7 +367,6 @@ def update_engagement_memo(tweet_ids, eng_dict_path=engagement_dict_path, chunk_
     engagement_dict = get_engagement_batchwise(tweet_ids, chunk_size=chunk_size)
 
     # Update local memo file
-    eng_dict_path = eng_dict_path+'TEST'
     write_to_json(engagement_dict, eng_dict_path)
     print(f'Successfully updated {eng_dict_path.lstrip("./")}.')
     print(f'Engagement data for {len(engagement_dict)} tweets updated.')
@@ -795,7 +794,8 @@ def set_thread_flags(df):
         if t_id in UNAVAILABLE_TWEETS:
             return ''
         tweet = get_tweet(t_id)
-        if tweet['user']['screen_name'] == tweet['in_reply_to_screen_name']:
+        if (tweet['user']['screen_name'] == tweet['in_reply_to_screen_name']) and (
+            tweet['in_reply_to_status_id'] != None):
             return True
         else:
             return ''
@@ -854,7 +854,7 @@ def set_more_than_5_tweets_flag(df):
     non_twitter = df['Non-Twitter Submission'] == True
     df.loc[non_twitter, 'Handle Counter'] = 0
     df['Tweet #6 or higher per month'] = df['Handle Counter'].apply(set_flag)
-    
+
     return df
 
 
