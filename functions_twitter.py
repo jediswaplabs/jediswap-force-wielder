@@ -911,7 +911,7 @@ def safe_to_int(val):
         return int(val)
 
 def set_red_flag(_id, trigger='airdrop'):
-    content = get_text(_id)
+    content = get_text(_id).lower()
     if trigger in content:
         return True
     else:
