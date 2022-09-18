@@ -253,16 +253,19 @@ def user_to_dict(user_status, fill_with_nan=False):
 
     return d
 
+def grouper(iterable, n, fillvalue=None):
+    '''
+    Helper function to slice iterable int chunks of size n (for querying)
+    '''
+    args = [iter(iterable)] * n
+    result = zip_longest(*args, fillvalue=fillvalue)
+    return [list(x) for x in result]
+
 def get_suspended_tweets(tweet_id_list):
     '''
     Takes list of tweet ids, returns subset (list) of
     tweet ids from suspended accounts (batch-querying client).
     '''
-    def grouper(iterable, n, fillvalue=None):
-        args = [iter(iterable)] * n
-        result = zip_longest(*args, fillvalue=fillvalue)
-        return [list(x) for x in result]
-
     chunked_ids = grouper(tweet_id_list, 100)
     suspended_tweet_ids = set()
 
@@ -279,12 +282,6 @@ def get_engagement_batchwise(tweet_id_list, chunk_size=100):
     Takes list of tweet ids, returns a dictionary of shape
     {tweet_id: (n_retweets, n_replies, n_likes, n_quotes)}.
     '''
-
-    def grouper(iterable, n, fillvalue=None):
-        args = [iter(iterable)] * n
-        result = zip_longest(*args, fillvalue=fillvalue)
-        return [list(x) for x in result]
-
     def transform(metrics):
         return (metrics['retweet_count'],
                 metrics['reply_count'],
@@ -312,11 +309,6 @@ def expand_truncated(tweet_ids):
     global TWEETS
     successfully_expanded = 0
     id_text_tups = []
-
-    def grouper(iterable, n, fillvalue=None):
-        args = [iter(iterable)] * n
-        result = zip_longest(*args, fillvalue=fillvalue)
-        return [list(x) for x in result]
 
     truncated = [x for x in tweet_ids if get_tweet(x)['truncated']]
     print(f'Found {len(truncated)} truncated tweets. Attempting to expand them...')
@@ -346,6 +338,46 @@ def expand_truncated(tweet_ids):
     print(f'Successfully added the full text to {successfully_expanded} truncated tweets.')
     return truncated
 
+def apply_to_series(pd_ser, func_name, **arg_dict):
+    '''
+    Wrapper to perform function on pandas column as list simultaneously.
+    Separates values from index and column name, performs function on list of values,
+    reattaches name+index, so that returned Series matches the input Series.
+    '''
+    ser = pd_ser
+    name = ser.name
+    index = ser.index
+    data = ser.tolist()
+
+    out_data = func_name(data, **arg_dict)
+
+    return pd.Series(data=out_data, index=index, name=name)
+
+def get_ts_creation_batchwise(tweet_ids):
+    '''
+    Takes list of tweet ids, returns timestamps of Tweet creation (batch-querying client)
+    or alternatively an error description, maintaining the list order.
+    Floats are assumed to be nans and result in a blank.
+    '''
+    # replace nans with 0
+    tweet_ids = [0 if type(x) == float else x for x in tweet_ids]
+
+    chunked_ids = grouper(tweet_ids, 100)
+    out_dict = {k: '' for k in tweet_ids}
+
+    for chunk in chunked_ids:
+        chunk = [x for x in chunk if x != None]
+        t_fields = ['created_at']
+        response = client.get_tweets(chunk, tweet_fields=t_fields)
+        data, errors = response[0], response[2]
+        # get timestamp or error per Tweet ID from response
+        ids_ts = {str(x['id']): x['created_at'] for x in data}
+        ids_errors = {str(x['value']): x['title'] for x in errors}
+        out_dict.update(ids_ts)
+        out_dict.update(ids_errors)
+
+    out_list = [out_dict[_id] for _id in tweet_ids]
+    return out_list
 
 def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path):
     global TWEETS
@@ -1007,7 +1039,7 @@ def add_points_denied_comment(row):
     else:
         return row['Comments']
 
-# Uncomment if TWEETS json file is empty (if running for first time i.e.)
+# Uncomment if TWEETS json file is still empty (if running for first time i.e.)
 #TWEETS = get_tweets(keyword, max_tweets)
 
 # Populate memo variables with past known jediswap tweets (TWEETS) and their users

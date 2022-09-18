@@ -49,7 +49,14 @@ def fill_missing_data(df):
 
     # Grab Tweet ID out of link and add as new column
     print('\n\tExtracting Tweet ID using regex...')
-    df['Tweet ID'] = df[ 'Submit a Link to your tweet, video or article'].str.extract('(?<=status/)(\d{19})', expand=True)
+    try:
+        df['Tweet ID'] = df['Submit a Link to your tweet, video or article'].str.extract('(?<=status/)(\d{19})', expand=True)
+    except KeyError:
+        old_name = 'Submit the tweet/medium article/youtube video/mirror article link'
+        new_name = 'Submit a Link to your tweet, video or article'
+        df.rename(columns = {old_name: new_name}, inplace = True)
+        print(f'Had to change a column name:\nBEFORE: {old_name}\nAFTER: {new_name}.')
+        df['Tweet ID'] = df[ 'Submit a Link to your tweet, video or article'].str.extract('(?<=status/)(\d{19})', expand=True)
     print(df.shape)
 
     # Update engagement metrics memo file
@@ -90,6 +97,12 @@ def fill_missing_data(df):
     df['Tweet Preview'] = df['Tweet ID'].apply(
         lambda column_name: get_preview(column_name, 40)
         )
+    print(df.shape)
+
+    # Add column: Content creation date
+    print('\nAdding timestamps of tweet creation...')
+    s, args = df['Tweet ID'], {}
+    df['Content creation date'] = apply_to_series(s, get_ts_creation_batchwise, **args)
     print(df.shape)
 
     # Add column: n_followers per user
@@ -205,7 +218,7 @@ def save_csv(df, out_path, sep=',', sort_by=None):
         'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
         'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '>5 mentions',
         'Follow-up tweet from thread', 'Tweet #6 or higher per month', 'Unrelated to JediSwap',
-        'Red Flag', 'Tweet Preview', 'Month', 'Comments'
+        'Red Flag', 'Tweet Preview', 'Month', 'Content creation date', 'Comments'
     ]
     out_df = df[cols]
 
