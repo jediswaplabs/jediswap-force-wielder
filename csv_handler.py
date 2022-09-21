@@ -66,6 +66,9 @@ def fill_missing_data(df):
     # Expand truncated tweets contained in TWEETS global variable
     expand_truncated(list(TWEETS.keys()))
 
+    # Update USERS global variable and file (for up-to-date follower count i.e.)
+    update_USERS(list(USERS.keys()))
+
     # Flag Non-Twitter Submissions (where no Tweet ID can be grabbed)
     df['Non-Twitter Submission'] = df['Tweet ID'].apply(check_for_nan)
 
