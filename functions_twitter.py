@@ -318,7 +318,6 @@ def expand_truncated(tweet_ids):
 
     for chunk in chunked_ids:
         chunk = [x for x in chunk if x != None]
-        print('chunk size:', len(chunk))
         t_fields = ['attachments', 'author_id', 'context_annotations', 'conversation_id', 'created_at',
                 'entities', 'geo', 'id', 'in_reply_to_user_id', 'lang', 'public_metrics',
                 'referenced_tweets', 'reply_settings', 'source', 'text', 'withheld']
@@ -337,6 +336,46 @@ def expand_truncated(tweet_ids):
 
     print(f'Successfully added the full text to {successfully_expanded} truncated tweets.')
     return truncated
+
+def update_USERS(user_ids):
+    '''
+    Updates the following data for all Twitter User IDs from USERS global variable
+    with up-to-date values:
+    'handle', 'bio', 'entities', 'followers_count', 'friends_count', 'tweets_count'.
+    Queries client and updates USERS global var.
+    '''
+    global USERS
+    out_dict = {}
+    print(f'Updating follower counts and similar data for all saved users in USERS.json...')
+
+    # filter out 'NaN's and chunk list for querying
+    user_ids = [x for x in user_ids if x.isdigit()]
+    chunked_ids = grouper(user_ids, 100)
+
+    # query client
+    for chunk in chunked_ids:
+        chunk = [x for x in chunk if x != None]
+        u_fields = ['description', 'username', 'entities', 'public_metrics']
+        response = client.get_users(ids=chunk, user_fields=u_fields)
+        data = response[0]
+        # add data to out_dict
+        for i in range(len(data)):
+            u = data[i]
+            m = data[i]['public_metrics']
+            out_dict[str(u['id'])] = {
+                'handle': u['username'],
+                'bio': u['description'],
+                'entities': u['entities'],
+                'followers_count': m['followers_count'],
+                'friends_count': m['following_count'],
+                'tweets_count': m['tweet_count'],
+            }
+
+    # copy all new data from out_dict to USERS global variable
+    for user_id, user_dict, in out_dict.items():
+        for key in user_dict:
+            USERS[user_id][key] = out_dict[user_id][key]
+    print(f'Successfully updated user data for {len(user_ids)} unique Twitter users.')
 
 def apply_to_series(pd_ser, func_name, **arg_dict):
     '''
