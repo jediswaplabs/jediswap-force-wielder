@@ -48,7 +48,7 @@ def fill_missing_data(df):
     print(df.shape)
 
     # Grab Tweet ID out of link and add as new column
-    print('\n\tExtracting Tweet ID using regex...')
+    print('\n\tExtracting Tweet IDs using regex...')
     try:
         df['Tweet ID'] = df['Submit a Link to your tweet, video or article'].str.extract('(?<=status/)(\d{19})', expand=True)
     except KeyError:
@@ -72,6 +72,9 @@ def fill_missing_data(df):
     # Flag Non-Twitter Submissions (where no Tweet ID can be grabbed)
     df['Non-Twitter Submission'] = df['Tweet ID'].apply(check_for_nan)
 
+    # Set 'no content' flag (if submission not from twitter, medium, etc.)
+    df['no content'] = df['Submit a Link to your tweet, video or article'].apply(set_no_content_flag)
+
     # Flag duplicate tweets as duplicates
     reset_UNIVERSAL_MEMO()
     df['Duplicate'] = df['Tweet ID'].apply(flag_as_duplicate)
@@ -82,7 +85,7 @@ def fill_missing_data(df):
     df['Red Flag'] = df['Tweet ID'].apply(set_red_flag)
 
     # Grab Twitter handle and add as new column
-    print('\n\tExtracting Twitter handle using regex...')
+    print('\n\tExtracting Twitter handles using regex...')
     df['Twitter Handle'] = df[ 'Submit a Link to your tweet, video or article'].str.extract(
         '(?<=twitter\.com/)(.+?)(?=/status)', expand=True
         )
@@ -110,7 +113,6 @@ def fill_missing_data(df):
 
     # Add column: n_followers per user
     print('\nQuerying for follower count and adding as new column (get_followers_count())...')
-    print(df.head(2))
     df['Followers'] = df['Twitter User ID'].apply(get_followers_count)
     print(df.shape)
 
@@ -196,6 +198,9 @@ def fill_missing_data(df):
     df['quotes jediswap'] = df['Tweet ID'].apply(set_jediswap_quote_flag)
     df['Unrelated to JediSwap'] = df.apply(check_if_unrelated, axis=1)
 
+    # Set flag for Twitter submissions not linking to a tweet
+    df['Not a tweet'] = df.apply(set_not_a_tweet_flag, axis=1)
+
     # No points for duplicate entries, [invalid links], suspended users, or multiple links submitted
     df['Follower Points'] = df.apply(correct_follower_p, axis=1)
     df['Retweet Points'] = df.apply(correct_retweet_p, axis=1)
@@ -219,9 +224,10 @@ def save_csv(df, out_path, sep=',', sort_by=None):
         'Wallet', 'Followers', 'Retweets',
         'Replies', 'Likes', 'Quotes', 'Follower Points', 'Retweet Points',
         'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
-        'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply', '>5 mentions',
-        'Follow-up tweet from thread', 'Tweet #6 or higher per month', 'Unrelated to JediSwap',
-        'Red Flag', 'Tweet Preview', 'Month', 'Content creation date', 'Comments'
+        'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply',
+        '>5 mentions', 'Follow-up tweet from thread', 'Tweet #6 or higher per month',
+        'Unrelated to JediSwap', 'Red Flag', 'Tweet Preview', 'Month', 'Content creation date',
+        'Comments'
     ]
     out_df = df[cols]
 
