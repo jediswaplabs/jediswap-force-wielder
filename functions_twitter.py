@@ -477,7 +477,6 @@ def query_API_for_tweet_obj(_id):
 
     # Case: Tweet flagged as by suspended user this session. Don't query API
     if _id in UNAVAILABLE_TWEETS:
-        print(f'Found {_id} in UNAVAILABLE_TWEETS set')
         return tweet_to_dict(_id, fill_with_nan=True)
 
     TweepyException = tweepy.errors.TweepyException
@@ -527,13 +526,13 @@ def query_API_for_user_obj(user_id):
 
     # Case: User flagged as by suspended user this session. Don't query API, return dummy dict with nans
     if user_id in SUSPENDED_USERS:
-        print(f'Found {user_id} in SUSPENDED_USERS set')
         return user_to_dict({'id_str': user_id}, fill_with_nan=True)
 
     TweepyException = tweepy.errors.TweepyException
 
     # If not suspended, try querying API for tweet data
-    print(f'\nHad to query API for User {user_id}')
+    if not isinstance(user_id, float):
+        print(f'\nHad to query API for User {user_id}')
     try:
         user_obj = api.get_user(user_id=user_id)
         jsonized = user_obj._json
@@ -564,7 +563,6 @@ def query_client_for_tweet_data(tweet_id):
 
     # Case: Tweet doesn't exist anymore
     if tweet_id in UNAVAILABLE_TWEETS:
-        print(f'Tweet {tweet_id} found in UNAVAILABLE_TWEETS. Not querying.')
         return None
 
     response = client.get_tweets(
@@ -629,7 +627,8 @@ def get_user(user_id):
     # if not in there, query Twitter API
     else:
         cond_log(f'calling query_API_for_user_obj(user_id) with user id {user_id}...')
-        print(f'Had to query API for User ID {user_id}')
+        if not isinstance(user_id, float):
+            print(f'Had to query API for User ID {user_id}')
         return query_API_for_user_obj(user_id)
 
 
@@ -685,8 +684,6 @@ def get_retr_repl_likes_quotes_count(tweet_id, memo_path=engagement_dict_path):
 
     # Case: Tweet engagement is stored in local json file. Read from there.
     if tweet_id in memo_d:
-        p = memo_path.strip('./')
-        print(f'Found {tweet_id} in {p}.')
         return tuple(memo_d[tweet_id])
 
     # Case: Tweet is not contained in json: Query Twitter client (max ~150 queries per 15 min.)
@@ -855,6 +852,41 @@ def set_reply_flags(df):
 
     df['Tweet is reply'] = df['Tweet ID'].apply(set_flag)
     return df
+
+def set_no_content_flag(link_field):
+    '''
+    Checks submission field and adds flag if the link doesn't include any out of
+    some whitelisted domains.
+    '''
+    content_triggers = [
+        'twitter.',
+        'medium.',
+        'mirror.',
+        'youtube.',
+        'youtu.be',
+        'substack.',
+        ]
+    return not(any(x in link_field for x in content_triggers))
+
+def set_not_a_tweet_flag(row):
+    '''
+    Adds a flag 'Not a tweet', if no Twitter handle exists, but twitter is mentioned
+    in the submission field.
+    '''
+    zero_point_flags = [
+        'Suspended Twitter User', 'Multiple links submitted', 'Duplicate', 'Red Flag',
+        'Tweet #6 or higher per month', 'Tweet is reply', 'Unrelated to JediSwap',
+        'no content'
+        ]
+    if isinstance(row['Twitter Handle'], float) and (
+        'twitter.' in row['Submit a Link to your tweet, video or article']):
+        return True
+    else:
+        return ''
+
+
+
+
 
 def set_thread_flags(df):
     '''
@@ -1029,7 +1061,6 @@ def row_handler(row):
 
 def correct_follower_p(row):
     if (row['Suspended Twitter User'] == True) or (
-        row['Non-Twitter Submission'] == True) or (
         row['Multiple links submitted'] == True) or (
         row['Duplicate'] == True) or (
         row['Red Flag'] == True):
@@ -1039,7 +1070,6 @@ def correct_follower_p(row):
 
 def correct_retweet_p(row):
     if (row['Suspended Twitter User'] == True) or (
-        row['Non-Twitter Submission'] == True) or (
         row['Multiple links submitted'] == True) or (
         row['Duplicate'] == True) or (
         row['Red Flag'] == True):
@@ -1048,33 +1078,45 @@ def correct_retweet_p(row):
         return row['Retweet Points']
 
 def correct_total_p(row):
-    if (row['Suspended Twitter User'] == True) or (
-        row['Multiple links submitted'] == True) or (
-        row['Duplicate'] == True) or (
-        row['Red Flag'] == True) or(
-        row['Non-Twitter Submission'] == True) or (
-        row['Tweet #6 or higher per month'] == True) or (
-        row['Tweet is reply'] == True) or (
-        row['Unrelated to JediSwap'] == True):
+    # flags triggering 0 points go here:
+    zero_point_flags = [
+        'Suspended Twitter User', 'Multiple links submitted', 'Duplicate', 'Red Flag',
+        'Tweet #6 or higher per month', 'Tweet is reply', 'Unrelated to JediSwap',
+        'no content', 'Not a tweet'
+            ]
+    # case: Any flag other than 'Non-Twitter Submission' is flagging -> 0 points
+    if any(row[x] == True for x in zero_point_flags):
         return 0
+
+    # case: Only 'Non-Twitter Submission' is flagging -> leave points blank
+    elif (row['Non-Twitter Submission'] == True) and not(any(
+        row[x] == True for x in zero_point_flags)):
+        return ''
+
     else:
         return row['Total Points']
 
 def add_points_denied_comment(row):
     msg_list = []
     flag_list = [
-        'Duplicate', 'Suspended Twitter User', 'Red Flag', 'Non-Twitter Submission',
-        'Multiple links submitted', 'Tweet #6 or higher per month', 'Tweet is reply',
-        'Unrelated to JediSwap'
+        'Duplicate', 'Suspended Twitter User', 'Red Flag', 'Multiple links submitted',
+        'Tweet #6 or higher per month', 'Tweet is reply', 'Unrelated to JediSwap',
+        'no content', 'Not a tweet'
         ]
+
     for flag in flag_list:
         if row[flag] == True:
             msg_list.append(flag)
+
     if msg_list != []:
         comment = 'No points given. Reason: ' + ', '.join(msg_list)
+
+        # some fine-tuning of comments
         comment = comment.replace('Suspended Twitter User', 'User suspended or tweet deleted')
-        comment = comment.replace('Non-Twitter Submission', 'Not a tweet')
+        if 'no content' in comment:
+            comment = 'Only twitter/medium/mirror/youtube/substack/ entries are accepted'
         return comment
+
     else:
         return row['Comments']
 
