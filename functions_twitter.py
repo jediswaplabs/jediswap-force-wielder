@@ -884,9 +884,29 @@ def set_not_a_tweet_flag(row):
     else:
         return ''
 
+def set_submission_type(row):
+    '''
+    Adds a column 'Submission Type' that sorts submissions into the categories
+    'TWEET', 'BLOG', or 'YOUTUBE'.
+    '''
+    invalid_triggers = ['Multiple links submitted', 'no content']
+    blog_triggers = ['medium.', 'mirror.', 'substack.']
+    youtube_triggers = ['youtube.', 'youtu.be']
+    submission_field = row['Submit a Link to your tweet, video or article']
 
+    if any(row[x] for x in invalid_triggers):
+        return 'INVALID'
 
+    if 'twitter.' in submission_field:
+        return 'TWEET'
 
+    if any(x in submission_field for x in youtube_triggers):
+        return 'VIDEO'
+
+    if any(x in submission_field for x in blog_triggers):
+        return 'BLOG'
+
+    return ''
 
 def set_thread_flags(df):
     '''
@@ -960,14 +980,19 @@ def set_more_than_5_tweets_flag(df):
 
     return df
 
-
-def set_multiple_links_flag(row):
+def set_multiple_links_flag(field):
     '''
     Adds a flag 'Multiple links submitted' to each row containing a valid twitter
     link and a ' ', indicating another link has been submitted.
     '''
-    if (row['Non-Twitter Submission'] != True) and (
-        row['Submit a Link to your tweet, video or article'].find(' ') != -1):
+    links = []
+    units = field.split(' ')
+    units = [x for x in units if x != '']
+    link_triggers = ['http', '.com', '.be', 'www']
+
+    [links.append(unit) for unit in units if any(x in unit for x in link_triggers)]
+
+    if len(links) > 1:
         return True
     else:
         return False

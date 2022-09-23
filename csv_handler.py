@@ -171,8 +171,8 @@ def fill_missing_data(df):
     # Delete tweet preview for invalid links and suspended users
     df['Tweet Preview'] = df.apply(row_handler, axis=1)
 
-    # Set flag if 1 valid twitter link + additional link have been submitted
-    df['Multiple links submitted'] = df.apply(set_multiple_links_flag, axis=1)
+    # Set flag if more than one link has been submitted
+    df['Multiple links submitted'] = df['Submit a Link to your tweet, video or article'].apply(set_multiple_links_flag)
 
     # Add comment 'Please submit each link as a single entry' if multiple links flag set
     df['Comments'] = ' '
@@ -201,6 +201,12 @@ def fill_missing_data(df):
     # Set flag for Twitter submissions not linking to a tweet
     df['Not a tweet'] = df.apply(set_not_a_tweet_flag, axis=1)
 
+    # Set flag categorizing the type of submitted content
+    df['Submission Type'] = df.apply(set_submission_type, axis=1)
+
+
+
+
     # No points for duplicate entries, [invalid links], suspended users, or multiple links submitted
     df['Follower Points'] = df.apply(correct_follower_p, axis=1)
     df['Retweet Points'] = df.apply(correct_retweet_p, axis=1)
@@ -227,7 +233,7 @@ def save_csv(df, out_path, sep=',', sort_by=None):
         'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply',
         '>5 mentions', 'Follow-up tweet from thread', 'Tweet #6 or higher per month',
         'Unrelated to JediSwap', 'Red Flag', 'Tweet Preview', 'Month', 'Content creation date',
-        'Comments'
+        'Submission Type', 'Comments'
     ]
     out_df = df[cols]
 
