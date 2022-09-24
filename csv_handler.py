@@ -195,12 +195,6 @@ def fill_missing_data(df):
     # Set flag for Twitter submissions not linking to a tweet
     df['Not a tweet'] = df.apply(set_not_a_tweet_flag, axis=1)
 
-    # Flag every tweet in excess of the 5 tweets with top points per user per month
-    # Caution: Replaces 'Total Points' value ' ' with 0
-    print('Setting flags for more than 5 tweets per month...')
-    df = set_more_than_5_tweets_flag(df)
-    print(df.shape)
-
     # Set flag categorizing the type of submitted content
     df['Submission Type'] = df.apply(set_submission_type, axis=1)
 
@@ -208,6 +202,13 @@ def fill_missing_data(df):
     df['Follower Points'] = df.apply(correct_follower_p, axis=1)
     df['Retweet Points'] = df.apply(correct_retweet_p, axis=1)
     df['Total Points'] = df.apply(correct_total_p, axis=1)
+
+    # Flag every tweet in excess of the 5 tweets with top points per user per month
+    # Caution: Replaces 'Total Points' value ' ' with 0
+    print('Setting flags for more than 5 tweets per month...')
+    df = set_more_than_5_tweets_flag(df)
+    df.loc[df['Tweet #6 or higher per month'] == True, 'Total Points'] = 0
+    print(df.shape)
 
     # Add explaining comment if a flag has been triggered and points denied
     print('Adding explanatory comment wherever points have been denied...')

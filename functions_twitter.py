@@ -888,7 +888,7 @@ def set_submission_type(row):
     Adds a column 'Submission Type' that sorts submissions into the categories
     'TWEET', 'BLOG', or 'YOUTUBE'.
     '''
-    invalid_triggers = ['Multiple links submitted', 'no content']
+    invalid_triggers = ['Multiple links submitted', 'no content', 'Not a tweet']
     blog_triggers = ['medium.', 'mirror.', 'substack.']
     youtube_triggers = ['youtube.', 'youtu.be']
     submission_field = row['Submit a Link to your tweet, video or article']
@@ -1107,8 +1107,7 @@ def correct_total_p(row):
     # flags triggering 0 points go here:
     zero_point_flags = [
         'Suspended Twitter User', 'Multiple links submitted', 'Duplicate', 'Red Flag',
-        'Tweet #6 or higher per month', 'Tweet is reply', 'Unrelated to JediSwap',
-        'no content', 'Not a tweet'
+        'Tweet is reply', 'Unrelated to JediSwap', 'no content', 'Not a tweet'
             ]
     # case: Any flag other than 'Non-Twitter Submission' is flagging -> 0 points
     if any(row[x] == True for x in zero_point_flags):
