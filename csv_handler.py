@@ -187,12 +187,6 @@ def fill_missing_data(df):
     df['parsed_time'] = pd.to_datetime(df['Timestamp'], infer_datetime_format=True)
     df['Month'] = df['parsed_time'].dt.month_name()
 
-    # Flag every tweet in excess of the 5 tweets with top points per user per month
-    # Caution: Replaces 'Total Points' value ' ' with 0
-    print('Setting flags for more than 5 tweets per month...')
-    df = set_more_than_5_tweets_flag(df)
-    print(df.shape)
-
     # Set flag to determine if tweet is unrelated to JediSwap
     df['contains jediswap'] = df['Tweet ID'].apply(set_contains_jediswap_flag)
     df['quotes jediswap'] = df['Tweet ID'].apply(set_jediswap_quote_flag)
@@ -201,11 +195,14 @@ def fill_missing_data(df):
     # Set flag for Twitter submissions not linking to a tweet
     df['Not a tweet'] = df.apply(set_not_a_tweet_flag, axis=1)
 
+    # Flag every tweet in excess of the 5 tweets with top points per user per month
+    # Caution: Replaces 'Total Points' value ' ' with 0
+    print('Setting flags for more than 5 tweets per month...')
+    df = set_more_than_5_tweets_flag(df)
+    print(df.shape)
+
     # Set flag categorizing the type of submitted content
     df['Submission Type'] = df.apply(set_submission_type, axis=1)
-
-
-
 
     # No points for duplicate entries, [invalid links], suspended users, or multiple links submitted
     df['Follower Points'] = df.apply(correct_follower_p, axis=1)

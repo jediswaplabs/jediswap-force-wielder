@@ -875,8 +875,7 @@ def set_not_a_tweet_flag(row):
     '''
     zero_point_flags = [
         'Suspended Twitter User', 'Multiple links submitted', 'Duplicate', 'Red Flag',
-        'Tweet #6 or higher per month', 'Tweet is reply', 'Unrelated to JediSwap',
-        'no content'
+        'Tweet is reply', 'Unrelated to JediSwap', 'no content'
         ]
     if isinstance(row['Twitter Handle'], float) and (
         'twitter.' in row['Submit a Link to your tweet, video or article']):
@@ -956,10 +955,10 @@ def set_more_than_5_tweets_flag(df):
     Copies the dataset and sorts it by total points. Iterates through rows and keeps count
     of each twitter handle. Flags every 6th or higher occurence of this handle.
     '''
-
     df['Total Points'] = df['Total Points'].replace(' ', 0)
     months = list(df['Month'].unique())
     df['Handle Counter'] = 0
+    ignore_list = [0, '', ' ']
 
     def set_flag(handle_count):
         if handle_count > 5:
@@ -969,6 +968,7 @@ def set_more_than_5_tweets_flag(df):
 
     for month in months:
         monthly_subset = df.loc[df['Month'] == month]
+        monthly_subset = monthly_subset[~monthly_subset['Total Points'].isin(ignore_list)]
         sorted_by_points = monthly_subset.sort_values('Total Points', ascending=False)
         sorted_by_points['Handle Counter'] = sorted_by_points.groupby('Twitter Handle').cumcount()+1
         df['Handle Counter'].update(sorted_by_points['Handle Counter'])
@@ -976,14 +976,15 @@ def set_more_than_5_tweets_flag(df):
     # Only count twitter-related submissions
     non_twitter = df['Non-Twitter Submission'] == True
     df.loc[non_twitter, 'Handle Counter'] = 0
+
     df['Tweet #6 or higher per month'] = df['Handle Counter'].apply(set_flag)
 
     return df
 
 def set_multiple_links_flag(field):
     '''
-    Adds a flag 'Multiple links submitted' to each row containing a valid twitter
-    link and a ' ', indicating another link has been submitted.
+    Adds a flag 'Multiple links submitted' to each row containing more than
+    one link
     '''
     links = []
     units = field.split(' ')
