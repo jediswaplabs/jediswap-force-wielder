@@ -109,20 +109,6 @@ def get_tweets(keyw, max_amount):
 
     return out_d
 
-def get_tweets_raw(keyw, max_amount):
-    '''
-    Returns all tweets from within last week containing a keyword
-    '''
-    search_results = tweepy.Cursor(api.search, q=keyw).items(max_amount)
-    out_d = {}
-
-    # create nested dictionary of tweet metadata
-    for t in search_results:
-        d = tweet_to_dict(t)
-        out_d[d['id']] = d
-
-    return out_d
-
 def load_TWEETS_from_json(json_path):
     '''
     Populates global variable TWEETS when the script is starting.
@@ -130,36 +116,12 @@ def load_TWEETS_from_json(json_path):
     global TWEETS
     TWEETS = read_from_json(json_path)
 
-def save_TWEETS_to_json(json_path):
-    global TWEETS
-    write_to_json(TWEETS, json_path)
-
 def load_USERS_from_json(USERS_json_path):
     '''
     Populates global variable TWEETS when the script is starting.
     '''
     global USERS
     USERS = read_from_json(USERS_json_path)
-
-def save_USERS_to_json(USERS_json_path):
-    global USERS
-    write_to_json(USERS, USERS_json_path)
-
-def populate_USERS_from_TWEETS():
-    '''
-    Takes TWEETS, gets all users from there,
-    queries Twitter API to fetch their data
-    and stores it in the USERS dictionary.
-    '''
-    global TWEETS
-    global USERS
-
-    users = set()
-    for tweet in TWEETS:
-        users.add(get_user_id(tweet))
-    for u in users:
-        d = get_user(u)
-        USERS[u] = d
 
 def tweet_to_dict(t, fill_with_nan=False):
     '''
@@ -445,26 +407,7 @@ def update_engagement_memo(tweet_ids, eng_dict_path=engagement_dict_path, chunk_
     return engagement_dict
 
 
-
-
-
 ###  getter functions
-
-def get_TWEETS():
-    global TWEETS
-    return TWEETS
-
-def get_USERS():
-    global USERS
-    return USERS
-
-def get_SUSPENDED_USERS():
-    global SUSPENDED_USERS
-    return SUSPENDED_USERS
-
-def get_UNIVERSAL_MEMO():
-    global UNIVERSAL_MEMO
-    return UNIVERSAL_MEMO
 
 def reset_UNIVERSAL_MEMO():
     global UNIVERSAL_MEMO
@@ -632,7 +575,6 @@ def get_user(user_id):
         return query_API_for_user_obj(user_id)
 
 
-
 ### tweet-related
 
 def get_text(tweet_id):
@@ -640,18 +582,6 @@ def get_text(tweet_id):
         return get_tweet(tweet_id)['text']
     except TypeError:
         return np.nan
-
-def get_retweet_count(_id):
-    result = 0
-    try:
-        result = int(get_tweet(_id)['retweet_count'])
-    except KeyError:
-        result = int(get_tweet(_id)['retw_count'])
-    finally:
-        if result == np.nan:
-            return np.nan
-        else:
-            return int(result)
 
 def get_engagement(tweet_id):
     '''
@@ -707,53 +637,8 @@ def get_retr_repl_likes_quotes_count(tweet_id, memo_path=engagement_dict_path):
 
     return out_tup
 
-def get_n_likes(tweet_id):
-    return get_tweet(tweet_id)['favorite_count']
-
-def has_been_retweeted(_id):
-    return get_tweet(_id)['retweeted_bool']
-
-def has_been_liked(_id):
-    return get_tweet(_id)['favorited_bool']
-
-def get_mentions(_id):
-    mentions = get_tweet(_id)['entities']['user_mentions']
-    names = [x['screen_name'] for x in mentions]
-    return names
-
-def get_n_past_tweets(user_id=None, tweet_id=None):
-    if user_id:
-        pass
-    if tweet_id:
-        return get_user_dict(tweet_id)['statuses_count']
-
-def get_source_tweet_id(tweet_id):
-    return get_source_tweet_from_retweet(tweet_id)['id_str']
-
-def get_source_tweet_user_id(tweet_id):
-    return get_source_tweet_from_retweet(tweet_id)['user']['id_str']
-
-def get_source_tweet_handle(tweet_id):
-    return get_source_tweet_from_retweet(tweet_id)['user']['screen_name']
-
-def get_source_tweet_n_likes(tweet_id):
-    return get_source_tweet_from_retweet(tweet_id)['favorite_count']
-
-
 
 ### user-related
-
-def get_friends_count(user_id):
-    return get_user(user_id)['friends_count']
-
-def get_favorites_count(user_id):
-    return get_user(user_id)['favourites_count']
-
-def get_n_tweets(user_id):
-    return get_user(user_id)['tweets_count']
-
-def get_last_tweet(user_id):
-    return get_user(user_id)['most_recent_tweet']
 
 def get_followers_count(user_id=None, tweet_id=None):
     if user_id:
@@ -769,25 +654,6 @@ def get_user_id(tweet_id):
         return get_user_dict(tweet_id)['id_str']
     except TypeError:
         return np.nan
-
-def get_handle(tweet_id):
-    return get_user_dict(tweet_id)['screen_name']
-
-def get_user_bio(tweet_id):
-    return get_user_dict['descripton']
-
-def orig_quote_or_rt(tweet_id):
-    try:
-        if get_text(tweet_id).startswith('RT'):
-            return 'retweet'
-        elif get_text(tweet_id).startswith('@'):
-            return 'quote'
-        else:
-            return 'original'
-    # Case: User suspended, no tweet data available anymore
-    except AttributeError:
-        return np.nan
-
 
 
 ### pandas-related
@@ -947,7 +813,6 @@ def set_mentions_flags(df):
     df['>5 mentions'] = df['Tweet ID'].apply(set_flag)
 
     return df
-
 
 def set_more_than_5_tweets_flag(df):
     '''
