@@ -1,9 +1,8 @@
 from csv_handler import *
 
 # Define csv paths
-in_csv = 'Force Wielders (Responses) - Form Responses 1-5.tsv'
+in_csv = 'Force Wielders (Responses) - Form Responses 1-7.tsv'
 out_path = './Force_Wielders_Data.csv'
-
 
 # Load csv
 obvious_print('Loading csv...')
@@ -24,4 +23,3 @@ update_memos()
 # Print preview of df
 print(f'Saved {out_path.lstrip("./")}\n')
 print(out_df.head())
-

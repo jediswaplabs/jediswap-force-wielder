@@ -1,7 +1,8 @@
-import os, inspect, json, tweepy
+import os, inspect, random, json, tweepy
 import numpy as np
 from dotenv import load_dotenv
 from itertools import zip_longest
+from copy import deepcopy
 
 
 TWEETS = {}
@@ -16,11 +17,8 @@ HAD_TO_QUERY_USERS = 0
 HAD_TO_QUERY_CLIENT_FOR_TWEETS = 0
 UNIVERSAL_MEMO = set()    # for use by functions called like df.apply(). Is wiped before use each time.
 engagement_dict_path = './engagement_metrics_memo.json'
+tweet_ids_path = './t_ids.json'
 
-
-# only used to populate TWEETS when script is run for the first time
-keyword = 'jediswap'
-max_tweets = 2000
 
 # Instantiate Twitter API
 load_dotenv('./.env')
@@ -73,7 +71,7 @@ def write_to_json(_dict, path):
     to json file located in path variable.
     '''
     with open(path, 'w') as jfile:
-        json_object = json.dump(_dict, jfile, indent=1)
+        json_object = json.dump(_dict, jfile, indent=1, default=str)
 
 def write_list_to_json(_list, path):
     '''
@@ -299,6 +297,121 @@ def expand_truncated(tweet_ids):
     print(f'Successfully added the full text to {successfully_expanded} truncated tweets.')
     return truncated
 
+def populate_memos(t_ids_path=tweet_ids_path):
+    '''
+    Checks if USERS & TWEETS memo files/dictionaries are empty.
+    If so, takes a list of Tweet IDs, batch-queries information and adds to
+    USERS & TWEETS global variable.
+    '''
+    global USERS, TWEETS
+
+    # skip completely if TWEETS dict contains information already
+    if TWEETS != {}:
+        return False
+
+    print('Detected empty memo files.\nQuerying & populating them to save on querying later on...' )
+    tweet_ids = read_list_from_json(t_ids_path)
+    tweet_ids = [x for x in tweet_ids if not isinstance(x, float)]    # filter out nans
+    chunked_ids = grouper(tweet_ids, 100)
+
+    def create_users_dict(users_obj):
+        keys = ['name', 'public_metrics', 'entities']
+        users_d = {}
+        for u in users_obj:
+            users_d[str(u['id'])] = {}
+            users_d[str(u['id'])]['handle'] = u['username']
+            users_d[str(u['id'])]['id_str'] = str(u['id'])
+            for k in keys:
+                users_d[str(u['id'])][k] = u[k]
+
+        return users_d
+
+    def transform(tweet):
+        '''
+        takes a raw queried tweet object and returns tweet data as dict formatted
+        to fit into the TWEETS dict.
+        '''
+        global USERS
+
+        t = tweet
+        d = {}
+        ref_twts = t['referenced_tweets'] if t['referenced_tweets'] != None else []
+
+        d['id'] = str(t['id'])
+        d['author_id'] = str(t['author_id'])
+        d['text'] = t['text']
+        d['public_metrics'] = t['public_metrics']
+        d['created_at'] = t['created_at']
+        d['in_reply_to_user_id'] = t['in_reply_to_user_id']
+        d['in_reply_to_status_id'] = next((str(x['id']) for x in ref_twts if x['type'] == 'replied_to'), None)
+        d['retweeted_from_tweet_id'] = next((str(x['id']) for x in ref_twts if x['type'] == 'retweeted'), None)
+        d['quoted_from_id'] = next((str(x['id']) for x in ref_twts if x['type'] == 'quoted'), None)
+
+        # add 'entities' and rename keys as needed
+        d['entities'] = deepcopy(t['entities'])
+
+        if d['entities'] is None:
+            d['entities'] = {}
+            d['entities']['user_mentions'] = []
+        elif 'mentions' in d['entities']:
+            d['entities']['user_mentions'] = d['entities'].pop('mentions')
+        else:
+            d['entities']['user_mentions'] = []
+
+        for nested_d in d['entities']['user_mentions']:
+            for k in nested_d:
+                if k == 'username':
+                    nested_d['screen_name'] = nested_d.pop('username')
+
+        # set truncated flag
+        if t['text'].startswith('RT'):
+            d['truncated'] = True
+        else:
+            d['truncated'] = False
+
+        # add 'user' dict from USERS
+        user_id = str(t['author_id'])
+        d['user'] = USERS[user_id]
+        d['user']['screen_name'] = d['user']['handle']
+
+        return d
+
+    # query client for 100 tweet ids at a time
+    for chunk in chunked_ids:
+        chunk = [x for x in chunk if x != None]
+        t_fields = ['id', 'author_id', 'created_at', 'entities', 'in_reply_to_user_id',
+                    'public_metrics', 'referenced_tweets', 'text', 'attachments',
+                    ]
+        u_fields = ['entities', 'id', 'name', 'public_metrics', 'username']
+        p_fields = ['full_name', 'id']
+        exps = ['author_id', 'referenced_tweets.id', 'referenced_tweets.id.author_id',
+                'in_reply_to_user_id', 'attachments.media_keys', 'entities.mentions.username',
+                ]
+        response = client.get_tweets(
+            chunk,
+            tweet_fields=t_fields,
+            user_fields=u_fields,
+            place_fields=p_fields,
+            expansions=exps
+            )
+        tweets = response[0]
+        users_obj = response.includes['users']
+
+        # add users to USERS dictionary
+        users_dict = create_users_dict(users_obj)
+        USERS.update(users_dict)
+
+        # add tweets to TWEETS dictionary
+        tweets_dict = {str(t['id']): transform(t) for t in tweets}
+        TWEETS.update(tweets_dict)
+
+    # remove users from USERS that are not tweet authors
+    tweet_authors = {x['author_id'] for x in TWEETS.values()}
+    to_remove = {x for x in USERS if x not in tweet_authors}
+    [USERS.pop(user_id) for user_id in to_remove]
+
+    return True
+
 def update_USERS(user_ids):
     '''
     Updates the following data for all Twitter User IDs from USERS global variable
@@ -387,6 +500,10 @@ def update_memos(u_p=USERS_json_path, tw_p=TWEETS_json_path):
     write_to_json(USERS, u_p)
     print(f'Updated {TWEETS_json_path.strip("./")} and {USERS_json_path.strip("./")}')
 
+def save_Tweet_IDs(id_list, path=tweet_ids_path):
+    write_list_to_json(id_list, path)
+    print(f'Updated {path}.')
+
 def update_engagement_memo(tweet_ids, eng_dict_path=engagement_dict_path, chunk_size=100):
     '''
     Wrapper function for get_engagement_batchwise(). Queries Twitter client in chunks
@@ -405,6 +522,43 @@ def update_engagement_memo(tweet_ids, eng_dict_path=engagement_dict_path, chunk_
     print(f'Engagement data for {len(engagement_dict)} tweets updated.')
 
     return engagement_dict
+
+def add_in_reply_to_screen_name_attribute(Tweet_ID_list):
+    '''
+    Helper function to add attribute 'in_reply_to_screen_name' to TWEETS entries.
+    '''
+    global TWEETS, USERS
+    d = {x: TWEETS[x]['in_reply_to_status_id'] for x in Tweet_ID_list}  # d = {t_id: id_source_tweet}
+    replied_ids = [x for x in d.values()]    # list of all source_tweet ids
+    chunked_ids = grouper(replied_ids, 100)
+    n_updated = 0
+
+    # query client for 100 tweet ids at a time
+    for chunk in chunked_ids:
+        chunk = [x for x in chunk if x != None]
+        exps = ['author_id', 'referenced_tweets.id', 'referenced_tweets.id.author_id',
+                'in_reply_to_user_id', 'attachments.media_keys', 'entities.mentions.username',
+                ]
+        response = client.get_tweets(ids=chunk, user_fields=['username'], expansions=['author_id'])
+        users = response.includes['users']
+
+        # get screen names of authors by tweet id
+        tid_authorid_dict = {x['id']: x['author_id'] for x in response.data}
+        authorid_username_dict = {x['id']: x['username'] for x in users}
+        tid_username_dict = {str(k): authorid_username_dict[v] for k, v in tid_authorid_dict.items()}
+
+        # update TWEETS global variable
+        all_ids = list(TWEETS.keys())
+        for _id in all_ids:
+            repl_id = TWEETS[_id]['in_reply_to_status_id']
+            if  repl_id in tid_username_dict:
+                screen_name = tid_username_dict[repl_id]
+                TWEETS[_id]['in_reply_to_screen_name'] = screen_name
+                n_updated += 1
+            else:
+                TWEETS[_id]['in_reply_to_screen_name'] = None
+
+    print(f'Successfully added "in_reply_to_screen_name" attribute to {n_updated} tweets')
 
 
 ###  getter functions
@@ -642,9 +796,10 @@ def get_retr_repl_likes_quotes_count(tweet_id, memo_path=engagement_dict_path):
 
 def get_followers_count(user_id=None, tweet_id=None):
     if user_id:
-        return get_user(user_id)['followers_count']
+        result = get_user(user_id)['followers_count']
     if tweet_id:
-        return get_user_dict(tweet_id)['followers_count']
+        result = get_user_dict(tweet_id)['followers_count']
+    return result
 
 def get_user_dict(tweet_id):
     return get_tweet(tweet_id)['user']
@@ -922,6 +1077,8 @@ def set_jediswap_quote_flag(_id):
     t = get_tweet(_id)
     # Catch TypeError for suspended users (nan values everywhere)
     if type(t['entities']) != dict:
+        return ' '
+    if 'urls' not in t['entities']:
         return ' '
 
     urls = t['entities']['urls']
