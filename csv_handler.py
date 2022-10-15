@@ -4,7 +4,7 @@ This file encapsulates all handling of the actual data (csv, DataFrame).
 
 import os
 import pandas as pd
-from functions_twitter import *
+#from functions_twitter import *
 
 def apply_and_concat(dataframe, field, func, column_names):
     '''
@@ -59,6 +59,11 @@ def fill_missing_data(df):
         df['Tweet ID'] = df[ 'Submit a Link to your tweet, video or article'].str.extract('(?<=status/)(\d{19})', expand=True)
     print(df.shape)
 
+
+    # Populate TWEETS & USERS memo files if empty (to save on querying throughout the script)
+    memos_queried = populate_memos()
+    if memos_queried: update_memos()
+
     # Update engagement metrics memo file
     tweet_ids = [x for x in list(df['Tweet ID'].unique()) if x is not np.nan]
     update_engagement_memo(tweet_ids)
@@ -68,6 +73,10 @@ def fill_missing_data(df):
 
     # Update USERS global variable and file (for up-to-date follower count i.e.)
     update_USERS(list(USERS.keys()))
+    if memos_queried:          # add 'in_reply_to_screen_name' manually because deprecated since APIv2
+        to_update = [x for x in list(TWEETS.keys()) if TWEETS[x]['in_reply_to_status_id'] is not None]
+        add_in_reply_to_screen_name_attribute(to_update)
+        update_memos()
 
     # Flag Non-Twitter Submissions (where no Tweet ID can be grabbed)
     df['Non-Twitter Submission'] = df['Tweet ID'].apply(check_for_nan)
@@ -127,7 +136,7 @@ def fill_missing_data(df):
     print('Flagging suspended Twitter users based on Tweet IDs...')
     df = update_suspension_flags(df)
     suspended = df.loc[df['Suspended Twitter User'] == True]
-    print('These users have been flagged as suspended by Twitter:\n')
+    print('These users have at least one submitted tweet that has been deleted since:\n')
     user_ids_d = suspended[['Twitter Handle', 'Twitter User ID']].set_index('Twitter Handle').to_dict()['Twitter User ID']
     prettyprint(user_ids_d, 'Twitter Handle', 'Twitter User ID')
     print(df.shape)
@@ -214,6 +223,10 @@ def fill_missing_data(df):
     print('Adding explanatory comment wherever points have been denied...')
     df['Comments'] = df.apply(add_points_denied_comment, axis=1)
     print(df.shape)
+
+    # Update list of Tweet IDs (needed to reconstruct old tweet data if memo files get lost / are empty)
+    id_list = list(df['Tweet ID'].unique())
+    if len(id_list) > 1000: save_Tweet_IDs(id_list)
 
     return df
 

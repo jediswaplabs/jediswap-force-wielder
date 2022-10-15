@@ -1,8 +1,10 @@
 # Data files
+engagement_metrics_memo.json
+TWEETS_memo.json
+USERS_memo.json
 *.xlsx
 *.csv
 *.tsv
-*.json
 .env_backup
 
 # OS files
