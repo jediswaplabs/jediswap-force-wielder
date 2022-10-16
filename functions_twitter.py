@@ -1167,9 +1167,17 @@ def add_points_denied_comment(row):
     else:
         return row['Comments']
 
-# Uncomment if TWEETS json file is still empty (if running for first time i.e.)
-#TWEETS = get_tweets(keyword, max_tweets)
+def set_any_flag(row):
+    flags = [
+        'Suspended Twitter User', 'Duplicate', 'Red Flag',
+        'Tweet is reply', 'Unrelated to JediSwap', '>5 mentions',
+        'Tweet #6 or higher per month', 'Follow-up tweet from thread'
+        ]
+    if any(row[x] == True for x in flags):
+        return True
+    else:
+        return ''
 
-# Populate memo variables with past known jediswap tweets (TWEETS) and their users
+# Populate memo variables with past known JediSwap-related tweets (TWEETS) and their users
 load_TWEETS_from_json(TWEETS_json_path)
 load_USERS_from_json(USERS_json_path)

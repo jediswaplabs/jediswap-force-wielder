@@ -224,6 +224,26 @@ def fill_missing_data(df):
     df['Comments'] = df.apply(add_points_denied_comment, axis=1)
     print(df.shape)
 
+<<<<<<< Updated upstream
+=======
+    # Add column 'Any Flag'
+    print('Setting "Any Flag" flag...')
+    df['Any Flag'] = df.apply(set_any_flag, axis=1)
+    print(df.shape)
+
+    # overwrite column 'Retweets' (represents RTs + quote tweets now)
+    print('Changing "Retweets" column logic (also counts quotes now)...')
+    df['RTs + Quotes'] = df['Retweets'] + df['Quotes']
+    df = df.drop('Retweets', axis=1).rename(columns = {'RTs + Quotes':'Retweets'})
+    print(df.shape)
+
+    # add empty columns 'Status' and 'Views'
+    df['Views'] = ''
+    df['Status'] = ''
+
+    # TODO: add column 'ID' (more information needed)
+
+>>>>>>> Stashed changes
     # Update list of Tweet IDs (needed to reconstruct old tweet data if memo files get lost / are empty)
     id_list = list(df['Tweet ID'].unique())
     if len(id_list) > 1000: save_Tweet_IDs(id_list)
@@ -238,13 +258,12 @@ def save_csv(df, out_path, sep=',', sort_by=None):
     cols = [
         'Timestamp', 'Submit a Link to your tweet, video or article',
         'Choose your verification option', 'Provide your Twitter handle(username)',
-        'Wallet', 'Followers', 'Retweets',
-        'Replies', 'Likes', 'Quotes', 'Follower Points', 'Retweet Points',
-        'Total Points','Twitter Handle', 'Tweet ID', 'Twitter User ID', 'Duplicate',
-        'Non-Twitter Submission', 'Suspended Twitter User', 'Tweet is reply',
-        '>5 mentions', 'Follow-up tweet from thread', 'Tweet #6 or higher per month',
-        'Unrelated to JediSwap', 'Red Flag', 'Tweet Preview', 'Month', 'Content creation date',
-        'Submission Type', 'Comments'
+        'Wallet', 'Non-Twitter Submission', 'Twitter Handle', 'ID', 'Month',
+        'Submission Type', 'Status', 'Followers', 'Retweets', 'Views', 'Total Points',
+        'Comments', 'Duplicate', 'Suspended Twitter User', 'Tweet is reply', '>5 mentions',
+        'Follow-up tweet from thread', 'Tweet #6 or higher per month',
+        'Unrelated to JediSwap', 'Red Flag', 'Any Flag', 'Tweet ID', 'Twitter User ID',
+        'Content creation date', 'Tweet Preview'
     ]
     out_df = df[cols]
 
