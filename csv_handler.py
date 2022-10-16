@@ -4,7 +4,7 @@ This file encapsulates all handling of the actual data (csv, DataFrame).
 
 import os
 import pandas as pd
-#from functions_twitter import *
+from functions_twitter import *
 
 def apply_and_concat(dataframe, field, func, column_names):
     '''
@@ -225,7 +225,10 @@ def fill_missing_data(df):
     print(df.shape)
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
     # Add column 'Any Flag'
     print('Setting "Any Flag" flag...')
     df['Any Flag'] = df.apply(set_any_flag, axis=1)
@@ -242,6 +245,13 @@ def fill_missing_data(df):
     df['Status'] = ''
 
     # TODO: add column 'ID' (more information needed)
+<<<<<<< Updated upstream
+
+>>>>>>> Stashed changes
+=======
+    print('Adding "ID" column...')
+    df['ID'] = df.apply(add_ID_column, axis=1)
+    print(df.shape)
 
 >>>>>>> Stashed changes
     # Update list of Tweet IDs (needed to reconstruct old tweet data if memo files get lost / are empty)
