@@ -44,7 +44,6 @@ client = tweepy.Client(
 )
 
 
-
 ###  batch API querying / file processing
 
 def obvious_print(msg):
@@ -1177,8 +1176,6 @@ def set_any_flag(row):
         return True
     else:
         return ''
-<<<<<<< Updated upstream
-=======
 
 def add_ID_column(row):
     if not isinstance(row['Twitter Handle'], float):
@@ -1187,7 +1184,6 @@ def add_ID_column(row):
         return row['Wallet']
     else:
         return row['Provide your Twitter handle(username)']
->>>>>>> Stashed changes
 
 # Populate memo variables with past known JediSwap-related tweets (TWEETS) and their users
 load_TWEETS_from_json(TWEETS_json_path)
