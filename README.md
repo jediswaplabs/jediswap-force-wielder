@@ -18,11 +18,13 @@ script ends and loaded again the next time the script is run.
 - engagement metrics (number of retweets, replies, quotes and likes)
 - number of followers of tweet author
 - preview of tweet contents
-- timestamp & dedicated month column
+- tweet timestamp & dedicated month column
 
 ### Additionally, flags are added to catch:
+- invalid submissions (i.e. multiple links)
 - users suspended by twitter
-- invalid twitter links
+- links unrelated to whitelisted content platforms
+- tweets unrelated to JediSwap
 - a literal 'red flag' that is triggered by a keyword contained in tweet (can be set)
 - duplicate entries pointing to the same tweet (tweet with earliest timestamp is treated as original)
 - tweets containing 3 or more mentions
