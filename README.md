@@ -30,3 +30,7 @@ script ends and loaded again the next time the script is run.
 - tweets containing 3 or more mentions
 - follow-up tweets from within a thread
 - tweets from an author with 5 prior tweets already for the same month
+
+### License
+
+This project is licensed under the MIT license. See the [LICENSE](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/LICENSE) file for details.
