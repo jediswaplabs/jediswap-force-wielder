@@ -1,5 +1,5 @@
 '''
-This file encapsulates all handling of the actual data (csv, DataFrame).
+All processing of the actual data (csv, DataFrame) happens here.
 '''
 
 import os
@@ -40,7 +40,7 @@ def load_csv(in_csv, sep=','):
 def fill_missing_data(df):
     '''
     Takes DataFrame, queries Twitter & fills in missing data
-    as specified.
+    as specified. All pandas-related logic happens here.
     '''
     # Load csv
     data = load_csv(in_csv, sep='\t')

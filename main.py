@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Written by Al Matty - github.com/al-matty
+"""
+
 from csv_handler import *
 
 # Define csv paths
