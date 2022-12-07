@@ -1,12 +1,12 @@
 '''
-All processing of the actual data (csv, DataFrame) happens here.
+This file encapsulates all handling of the actual data (csv, DataFrame).
 '''
 
 import os
 import pandas as pd
 from functions_twitter import *
 
-def apply_and_concat(dataframe, field, func, column_names):
+def apply_and_concat(dataframe, field, func, column_names) -> pandas.DataFrame:
     '''
     Helper function. Applies a function returning a tuple to a specified
     input field and adds the result as new columns to the df. The elements
@@ -17,7 +17,7 @@ def apply_and_concat(dataframe, field, func, column_names):
         dataframe[field].apply(
             lambda cell: pd.Series(func(cell), index=column_names))), axis=1)
 
-def get_cols(in_csv, sep=','):
+def get_cols(in_csv, sep=',') -> list:
     '''
     Takes csv file, returns pandas DataFrame.
     '''
@@ -29,7 +29,7 @@ def get_cols(in_csv, sep=','):
         data = pd.read_csv(infile, sep='\t', header='infer')
     return list(data.columns)
 
-def load_csv(in_csv, sep=','):
+def load_csv(in_csv, sep=',') -> pandas.DataFrame:
     '''
     Takes csv file, returns pandas DataFrame.
     '''
@@ -37,10 +37,10 @@ def load_csv(in_csv, sep=','):
         data = pd.read_csv(infile, sep='\t', header='infer')
     return data
 
-def fill_missing_data(df):
+def fill_missing_data(df) -> pandas.DataFrame:
     '''
     Takes DataFrame, queries Twitter & fills in missing data
-    as specified. All pandas-related logic happens here.
+    as specified.
     '''
     # Load csv
     data = load_csv(in_csv, sep='\t')
@@ -59,13 +59,14 @@ def fill_missing_data(df):
         df['Tweet ID'] = df[ 'Submit a Link to your tweet, video or article'].str.extract('(?<=status/)(\d{19})', expand=True)
     print(df.shape)
 
-
     # Populate TWEETS & USERS memo files if empty (to save on querying throughout the script)
     memos_queried = populate_memos()
     if memos_queried: update_memos()
 
     # Update engagement metrics memo file
     tweet_ids = [x for x in list(df['Tweet ID'].unique()) if x is not np.nan]
+    print(f"Got {len(tweet_ids)} tweet_ids. Sample: {tweet_ids[:20]}")
+
     update_engagement_memo(tweet_ids)
 
     # Expand truncated tweets contained in TWEETS global variable
@@ -250,7 +251,7 @@ def fill_missing_data(df):
 
     return df
 
-def save_csv(df, out_path, sep=',', sort_by=None):
+def save_csv(df, out_path, sep=',', sort_by=None) -> pandas.DataFrame:
     '''
     Saves DataFrame with specified column and row order to disk.
     '''
