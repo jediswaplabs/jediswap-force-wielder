@@ -7,8 +7,8 @@ results locally as a new csv. No rows are dropped. A comment is added
 whenever points are denied due to a flag.
 
 To run, an account at http://developer.twitter.com/ is needed. API and client
-credentials go in the .env file. See sample.env for the env variable names.
-functions_twitter.py is making extensive use of memoization via global variables
+credentials go in the `.env` file. See sample.env for the env variable names.
+`functions_twitter.py` is making extensive use of memoization via global variables
 and local json files to avoid excessive querying of the API. No tweet id is
 queried twice. Queried tweet contents and metadata are stored locally before the
 script ends and loaded again the next time the script is run.
@@ -30,6 +30,15 @@ script ends and loaded again the next time the script is run.
 - tweets containing 3 or more mentions
 - follow-up tweets from within a thread
 - tweets from an author with 5 prior tweets already for the same month
+
+### Usage
+
+Enter the Twitter API & Twitter Client Authentication Details into `.env` to their respective keys, as shown in [sample.env](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/sample.env).
+
+Run `main.py` to start the script.
+```
+python main.py
+```
 
 ### License
 
