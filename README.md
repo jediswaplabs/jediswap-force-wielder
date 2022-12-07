@@ -35,7 +35,7 @@ script ends and loaded again the next time the script is run.
 
 Enter the Twitter API & Twitter Client Authentication Details into `.env` to their respective keys, as shown in [sample.env](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/sample.env).
 
-Run `main.py` to start the script.
+Run `main.py` to start the script!
 ```
 python main.py
 ```
