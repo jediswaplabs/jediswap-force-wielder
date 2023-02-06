@@ -1,17 +1,23 @@
+# query_tweets.py (new & python 3.9)
+
 """
-Placeholder file for new functionality until implemented.
+In this file the functions for the scheduled querying of Twitter are defined.
+Some filtering is also done at this level, i.e. retweets are dropped.
 """
+
+import inspect
 import requests
-import os
-import json
+from dotenv import load_dotenv
+from functions_twitter import *
+load_dotenv('./.env')
 
-last_mentioned_path = None
+last_queried_path = "./last_queried.json"   # most recently queried tweet ids stored here
 jediswap_user_id = "1470315931142393857"
-bearer_token = os.environ.get("BEARER_TOKEN")
+bearer_token = os.environ.get("TW_BEARER_TOKEN")
 
-new_jediswap_tweets = [] # new tweets by official JediSwap will be appended here
-new_mentions = []        # new tweets mentioning JediSwap will be appended here
-new_quotes = []          # new tweets quoting JediSwap tweets will be appended here
+new_jediswap_tweets = []   # new tweets by official JediSwap will be appended here
+new_mentions = []          # new tweets mentioning JediSwap will be appended here
+new_quotes = []            # new tweets quoting JediSwap tweets will be appended here
 
 def bearer_oauth(r):
     """Method required by bearer token authentication."""
@@ -30,27 +36,61 @@ def connect_to_endpoint(url, params, bearer_token):
         )
     return response.json()
 
-def get_new_mentions(user_id, last_mentioned_path, bearer_token):
+def get_new_mentions(user_id, last_queried_path, bearer_token):
     """
     Query mentions timeline of Twitter user until tweet id from
     {last_mentioned_path} encountered. Replace last
     """
     new_mentions = []
+    last_queried = read_from_json(last_queried_path) # Most recent tweet id fetched by this method last time
+    end_trigger = last_queried["id_last_mentioned_jediswap"]
+    #end_trigger = '1622149104812843008' # For debugging
+    newest_id = end_trigger
+    func_name = inspect.currentframe().f_code.co_name
+
+    # Define query parameters & return first page. Continue if more exist
     url = "https://api.twitter.com/2/users/{}/mentions".format(user_id)
     params = {
-        "tweet.fields": "public_metrics",
-        "max_results": "100"
+        "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
+            "referenced_tweets,source",
+        "user.fields": "id,username,entities,public_metrics",
+        "max_results": "10",
+        "since_id": end_trigger
     }
     json_response = connect_to_endpoint(url, params, bearer_token)
+    meta, tweets = json_response["meta"], json_response["data"]
+    new_mentions.extend(tweets)
 
-    # TODO: Manually set first last_mentioned in json to first tweet mentioning JediSwap in Feb 2023
-    # Get last_mentioned (tweet id) from json
-    # Iterate over tweet ids, query next 100 if last_mentioned not in results
-    # Do until last_mentioned found. Then slice tweet id list at last_mentioned & return
+    # Continue querying until last (=oldest) page reached
+    while "next_token" in meta:
 
-    return json.dumps(json_response, indent=4, sort_keys=True)
+        params["pagination_token"] = meta["next_token"]
+        json_response = connect_to_endpoint(url, params, bearer_token)
+        meta = json_response["meta"]
 
-    # return new_mentions
+        if "data" in json_response:
+
+            tweets = json_response["data"]
+            new_mentions.extend(tweets)
+
+            if meta["newest_id"] > newest_id:
+                newest_id = meta["newest_id"]
+
+    #last_queried["id_last_mentioned_jediswap"] = last_id
+    d = {}
+    d["id_last_mentioned_jediswap"] = newest_id
+    #write_to_json(last_queried, last_queried_path)
+    write_to_json(d, last_queried_path)
+
+    # Add source attribute to tweets to trace potential bugs back to origin
+    func_name = str(inspect.currentframe().f_code.co_name + "()")
+    [x.update({"source": func_name}) for x in new_mentions]
+
+    return new_mentions
 
 
-new_mentions = get_new_mentions(jediswap_user_id, last_mentioned_path, bearer_token)
+new_mentions = get_new_mentions(jediswap_user_id, last_queried_path, bearer_token)
+
+# TODO: Check which tweet attributes are needed, include expansion object
+# TODO: Filter out retweets using text.startswith("RT") as early as possible
+# TODO: Merge tweet lists using sets & unions in the end to avoid doubles
