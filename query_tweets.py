@@ -48,13 +48,12 @@ def get_new_mentions(user_id, last_queried_path, bearer_token):
     end_trigger = last_queried["id_last_mentioned_jediswap"]
     #end_trigger = '1622149104812843008' # Random tweet id (for testing only)
     newest_id = end_trigger
-    func_name = inspect.currentframe().f_code.co_name
 
     # Define query parameters & return first page. Continue if more exist
     url = "https://api.twitter.com/2/users/{}/mentions".format(user_id)
     params = {
         "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
-            "referenced_tweets",
+            "referenced_tweets,conversation_id",
         "user.fields": "id,username,entities,public_metrics",
         "max_results": "100",
         "since_id": end_trigger
@@ -101,13 +100,12 @@ def get_new_tweets_by_user(user_id, last_queried_path, bearer_token):
     end_trigger = last_queried["id_last_jediswap_tweet"]
     #end_trigger = "1621149172740268032" # Random tweet id (for testing only)
     newest_id = end_trigger
-    func_name = inspect.currentframe().f_code.co_name
 
     # Define query parameters & return first page. Continue if more exist
     url = "https://api.twitter.com/2/users/{}/tweets".format(user_id)
     params = {
         "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
-            "referenced_tweets",
+            "referenced_tweets,conversation_id",
         "user.fields": "id,username,entities,public_metrics",
         "max_results": "100",
         "since_id": end_trigger
@@ -140,19 +138,83 @@ def get_new_tweets_by_user(user_id, last_queried_path, bearer_token):
 
     # Add source attribute to tweets to trace potential bugs back to origin
     func_name = str(inspect.currentframe().f_code.co_name + "()")
-    [x.update({"source": func_name}) for x in new_mentions]
+    [x.update({"source": func_name}) for x in new_tweets]
 
     return new_tweets
 
+def get_quotes_for_tweet(tweet_id, bearer_token):
+    """Queries API for all quote tweets of {tweet_id}."""
+    quotes = []
+
+    # Define query parameters & return first page. Continue if more exist
+    url = "https://api.twitter.com/2/tweets/{}/quote_tweets".format(tweet_id)
+    params = {
+        "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
+            "referenced_tweets,conversation_id",
+        "user.fields": "id,username,entities,public_metrics",
+        "max_results": "100",
+    }
+    json_response = connect_to_endpoint(url, params, bearer_token)
+    meta = json_response["meta"]
+
+    # Return emtpy list if no quotes found
+    if "data" not in json_response:
+        return []
+
+    tweets = json_response["data"]
+    quotes.extend(tweets)
+
+    # Continue querying until last (=oldest) page reached
+    while "next_token" in meta:
+
+        params["pagination_token"] = meta["next_token"]
+        json_response = connect_to_endpoint(url, params, bearer_token)
+        meta = json_response["meta"]
+
+        if "data" in json_response:
+
+            tweets = json_response["data"]
+            quotes.extend(tweets)
+
+    # Add source attribute to tweets to trace potential bugs back to origin
+    func_name = str(inspect.currentframe().f_code.co_name + "()")
+    [x.update({"source": func_name}) for x in quotes]
+
+    return quotes
+
+def get_new_quote_tweets(user_id, last_queried_path, bearer_token):
+    """
+    Queries API for all JediSwap tweets since the tweet id stored in the
+    json file in {last_queried_path}. Discards retweets, iterates through
+    results & returns all quote tweets for these tweets.
+    Updates json from {last_queried_path} with new most recent JediSwap tweet id.
+    """
+    new_quotes = []
+    new_jediswap_tweets = get_new_tweets_by_user(user_id, last_queried_path, bearer_token)
+    tweet_ids = [t["id"] for t in new_jediswap_tweets]
+
+    # Get quotes of each new tweet
+    for t_id in tweet_ids:
+        quotes = get_quotes_for_tweet(t_id, bearer_token)
+        new_quotes.extend(quotes)
+
+    # Add source attribute to tweets to trace potential bugs back to origin
+    func_name = str(inspect.currentframe().f_code.co_name + "()")
+    [x.update({"source": func_name}) for x in new_quotes]
+
+    return new_quotes
 
 
-#new_mentions = get_new_mentions(jediswap_user_id, last_queried_path, bearer_token)
-#new_jediswap_tweets = get_new_tweets_by_user(jediswap_user_id, last_queried_path, bearer_token)
+new_mentions = get_new_mentions(jediswap_user_id, last_queried_path, bearer_token)
+new_jediswap_tweets = get_new_tweets_by_user(jediswap_user_id, last_queried_path, bearer_token)
+new_quotes = get_new_quote_tweets(jediswap_user_id, last_queried_path, bearer_token)
+
 
 # DONE: Implement querying based on mentions of JediSwap account
-# TODO: Implement querying based on quote tweets of tweets of JediSwap account
+# DONE: Implement querying based on quote tweets of tweets of JediSwap account
 # TODO: Check which tweet attributes are needed, include expansion object while querying
 # TODO: Filter out retweets using t["text"].startswith("RT") right after querying
 # TODO: Filter out tweets with too many mentions right after querying using regex
 # TODO: Merge tweet lists using sets & unions in the end to rule out doubles
+# TODO: Generate csv data since Feb for debugging
 # TODO: Rewrite main script to work with now very different input data
