@@ -1,5 +1,3 @@
-# query_tweets.py (new & python 3.9)
-
 """
 In this file the functions for the scheduled querying of Twitter are defined.
 Some filtering is also done at this level, i.e. any retweets are dropped.
@@ -39,9 +37,9 @@ def connect_to_endpoint(url, params, bearer_token):
 
 def get_new_mentions(user_id, last_queried_path, bearer_token):
     """
-    Query mentions timeline of Twitter user until tweet id from
-    {last_queried_path} encountered. Return list of all tweets newer
-    than that id. Update this tweet id in the end.
+    Queries mentions timeline of Twitter user until tweet id from
+    {last_queried_path} encountered. Returns list of all tweets newer
+    than that id. Updates this tweet id in the end.
     """
     new_mentions = []
     last_queried = read_from_json(last_queried_path)
@@ -56,7 +54,7 @@ def get_new_mentions(user_id, last_queried_path, bearer_token):
     url = "https://api.twitter.com/2/users/{}/mentions".format(user_id)
     params = {
         "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
-            "referenced_tweets,source",
+            "referenced_tweets",
         "user.fields": "id,username,entities,public_metrics",
         "max_results": "100",
         "since_id": end_trigger
@@ -90,8 +88,66 @@ def get_new_mentions(user_id, last_queried_path, bearer_token):
 
     return new_mentions
 
+def get_new_tweets_by_user(user_id, last_queried_path, bearer_token):
+    """
+    Queries tweets timeline of Twitter user until tweet id from
+    {last_queried_path} encountered. Returns list of all tweets newer
+    than that id. Updates this tweet id in the end. Retweets are filtered out!
+    """
+    new_tweets = []
+    last_queried = read_from_json(last_queried_path)
 
-new_mentions = get_new_mentions(jediswap_user_id, last_queried_path, bearer_token)
+    # Get most recent tweet id fetched by this method last time
+    end_trigger = last_queried["id_last_jediswap_tweet"]
+    #end_trigger = "1621149172740268032" # Random tweet id (for testing only)
+    newest_id = end_trigger
+    func_name = inspect.currentframe().f_code.co_name
+
+    # Define query parameters & return first page. Continue if more exist
+    url = "https://api.twitter.com/2/users/{}/tweets".format(user_id)
+    params = {
+        "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
+            "referenced_tweets",
+        "user.fields": "id,username,entities,public_metrics",
+        "max_results": "100",
+        "since_id": end_trigger
+    }
+    json_response = connect_to_endpoint(url, params, bearer_token)
+    meta, tweets = json_response["meta"], json_response["data"]
+    new_tweets.extend(tweets)
+
+    # Continue querying until last (=oldest) page reached
+    while "next_token" in meta:
+
+        params["pagination_token"] = meta["next_token"]
+        json_response = connect_to_endpoint(url, params, bearer_token)
+        meta = json_response["meta"]
+
+        if "data" in json_response:
+
+            tweets = json_response["data"]
+            new_tweets.extend(tweets)
+
+            if meta["newest_id"] > newest_id:
+                newest_id = meta["newest_id"]
+
+    # Update most recent id queried -> store in json file
+    last_queried["id_last_jediswap_tweet"] = newest_id
+    write_to_json(last_queried, last_queried_path)
+
+    # Filter out retweets
+    new_tweets = [t for t in new_tweets if not t["text"].startswith("RT")]
+
+    # Add source attribute to tweets to trace potential bugs back to origin
+    func_name = str(inspect.currentframe().f_code.co_name + "()")
+    [x.update({"source": func_name}) for x in new_mentions]
+
+    return new_tweets
+
+
+
+#new_mentions = get_new_mentions(jediswap_user_id, last_queried_path, bearer_token)
+#new_jediswap_tweets = get_new_tweets_by_user(jediswap_user_id, last_queried_path, bearer_token)
 
 # DONE: Implement querying based on mentions of JediSwap account
 # TODO: Implement querying based on quote tweets of tweets of JediSwap account
