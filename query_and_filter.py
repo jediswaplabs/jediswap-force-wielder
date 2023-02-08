@@ -19,20 +19,24 @@ load_dotenv('./.env')
 
 jediswap_user_id = "1470315931142393857"
 bearer_token = os.environ.get("TW_BEARER_TOKEN")
+
 # Json file containing the most recent tweet id queried per function
 last_queried_path = "./last_queried.json"
+
 # Any filtered-out tweets go here for checking if filters work correctly
 discarded_path = "./discarded_tweets.json"
 
-#new_jediswap_tweets = []   # New tweets by official JediSwap will be appended here
-#new_mentions = []          # New tweets mentioning JediSwap will be appended here
-#new_quotes = []            # New tweets quoting JediSwap tweets will be appended here
-
 # Regex filter patterns. Any tweet where a pattern matches the tweet text gets dropped.
-filter_patterns = [{
+filter_patterns = [
+    {
     "name": "more_than_5_mentions",
-    "pattern" : r"@\w+\s.*@\w+\s.*@\w+\s.*@\w+\s.*@\w+",
+    "pattern" : r"@\w+\s.*@\w+\s.*@\w+\s.*@\w+\s.*@\w+\s.*@\w+",
     "flag": "dotall"
+    },
+    {
+    "name": "red_flag",
+    "pattern" : r"airdrop",
+    "flag": "ignorecase"
     },
 ]
 
@@ -41,6 +45,17 @@ def bearer_oauth(r) -> dict:
     """Method required by bearer token authentication."""
     r.headers["Authorization"] = f"Bearer {bearer_token}"
     return r
+
+def get_query_params() -> dict:
+    """Tweet information returned by api is defined here."""
+    params = {
+        "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
+            "referenced_tweets,conversation_id",
+        "user.fields": "id,username,entities,public_metrics",
+        "expansions": "author_id,in_reply_to_user_id",
+        "max_results": "100"
+    }
+    return params
 
 def connect_to_endpoint(url, params, bearer_token):
     """Wrapper for Twitter API queries."""
@@ -54,6 +69,31 @@ def connect_to_endpoint(url, params, bearer_token):
         )
     return response.json()
 
+def merge_user_data(tweets_list, users_list):
+    """
+    Helper function needed while querying the Twitter API.
+    Takes the ["data"] and ["includes"]["users"] lists from the json_response,
+    adds user parameters to their respective tweets matching "author_id" & "id"
+    """
+    out_list = []
+    users_dict = {u["id"]: u for u in users_list}
+
+    # Iterate over all tweets & copy over their user information from users_list
+    for t in tweets_list:
+
+        user_id = t["author_id"]
+        u = users_dict[user_id]
+
+        t["username"] = u["username"]
+        t["followers_count"] = u["public_metrics"]["followers_count"]
+        t["following_count"] = u["public_metrics"]["following_count"]
+        t["tweet_count"] = u["public_metrics"]["tweet_count"]
+        t["listed_count"] = u["public_metrics"]["listed_count"]
+
+        out_list.append(t)
+
+    return out_list
+
 def paginated_query(url, params, bearer_token, infinite=False) -> list:
     """
     Queries pagewise for max results until last page. Returns list of tweets.
@@ -62,7 +102,8 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
     if not infinite:
         assert "since_id" in params, ("No end for querying defined. Will query until rate limit reached!")
 
-    out_list = []
+    tweets_list = []
+    users_list = []
 
     # First query. If no results & no error -> Return emtpy list
     json_response = connect_to_endpoint(url, params, bearer_token)
@@ -72,7 +113,10 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
 
     # Else continue querying until last (=oldest) page reached
     tweets = json_response["data"]
-    out_list.extend(tweets)
+    users = json_response["includes"]["users"]
+
+    tweets_list.extend(tweets)
+    users_list.extend(users)
 
     while "next_token" in meta:
 
@@ -83,7 +127,12 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
         if "data" in json_response:
 
             tweets = json_response["data"]
-            out_list.extend(tweets)
+            users = json_response["includes"]["users"]
+            tweets_list.extend(tweets)
+            users_list.extend(users)
+
+    # Add user data back to original tweets
+    out_list = merge_user_data(tweets_list, users_list)
 
     return out_list
 
@@ -92,16 +141,6 @@ def backup_end_triggers(json_path) -> None:
     out_path = json_path.replace(".json", "BAK.txt")
     id_dict = read_from_json(json_path)
     write_to_json(id_dict, out_path)
-
-def get_query_params() -> dict:
-    """Tweet information returned by api is defined here."""
-    params = {
-        "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
-            "referenced_tweets,conversation_id",
-        "user.fields": "id,username,entities,public_metrics",
-        "max_results": "100"
-    }
-    return params
 
 def get_new_mentions(user_id, last_queried_path, bearer_token):
     """
@@ -294,9 +333,9 @@ if __name__ == "__main__":
 # DONE: Implement querying based on mentions of JediSwap account
 # DONE: Implement querying based on quote tweets of tweets of JediSwap account
 # DONE: Abstract away repetetive code
-# TODO: Check which tweet attributes are needed, include expansion object while querying
+# DONE: Check which tweet attributes are needed, include "expansions" object while querying
 # DONE: Filter out retweets using t["text"].startswith("RT") right after querying
 # DONE: Filter out tweets with too many mentions right after querying using regex
 # DONE: Merge tweet lists and discard doubles based on tweet id
-# TODO: Rewrite main script to work with now very different input data
-# TODO: Add other filters (i.e. 'Red flag')
+# TODO: Rewrite main script to work with the new input data
+# TODO: Add other filters
