@@ -5,20 +5,35 @@ Some filtering is also done at this level, i.e. any retweets are dropped.
 
 import inspect
 import requests
+import re
+from pprint import pp, pformat
+from copy import deepcopy
 from dotenv import load_dotenv
 from functions_twitter import *
 load_dotenv('./.env')
 
-# Json file containing the most recent tweet id per function
-last_queried_path = "./last_queried.json"
+
 jediswap_user_id = "1470315931142393857"
 bearer_token = os.environ.get("TW_BEARER_TOKEN")
+# Json file containing the most recent tweet id queried per function
+last_queried_path = "./last_queried.json"
+# Any filtered-out tweets go here for checking if filters work correctly
+discarded_path = "./discarded_tweets.json"
 
 new_jediswap_tweets = []   # New tweets by official JediSwap will be appended here
 new_mentions = []          # New tweets mentioning JediSwap will be appended here
 new_quotes = []            # New tweets quoting JediSwap tweets will be appended here
 
-def bearer_oauth(r):
+# Regex filter patterns. Any tweet where a pattern matches the tweet text gets dropped.
+filter_patterns = [{
+    "name": "more_than_5_mentions",
+    "pattern" : r"@\w+\s.*@\w+\s.*@\w+\s.*@\w+\s.*@\w+",
+    "flag": "dotall"
+    },
+]
+
+
+def bearer_oauth(r) -> dict:
     """Method required by bearer token authentication."""
     r.headers["Authorization"] = f"Bearer {bearer_token}"
     return r
@@ -35,34 +50,26 @@ def connect_to_endpoint(url, params, bearer_token):
         )
     return response.json()
 
-def get_new_mentions(user_id, last_queried_path, bearer_token):
+def paginated_query(url, params, bearer_token, infinite=False) -> list:
     """
-    Queries mentions timeline of Twitter user until tweet id from
-    {last_queried_path} encountered. Returns list of all tweets newer
-    than that id. Updates this tweet id in the end.
+    Queries pagewise for max results until last page. Returns list of tweets.
+    Will abort if no end_trigger is set, unless "infinite" is set to True.
     """
-    new_mentions = []
-    last_queried = read_from_json(last_queried_path)
+    if not infinite:
+        assert "since_id" in params, ("No end for querying defined. Will query until rate limit reached!")
 
-    # Get most recent tweet id fetched by this method last time
-    end_trigger = last_queried["id_last_mentioned_jediswap"]
-    #end_trigger = '1622149104812843008' # Random tweet id (for testing only)
-    newest_id = end_trigger
+    out_list = []
 
-    # Define query parameters & return first page. Continue if more exist
-    url = "https://api.twitter.com/2/users/{}/mentions".format(user_id)
-    params = {
-        "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
-            "referenced_tweets,conversation_id",
-        "user.fields": "id,username,entities,public_metrics",
-        "max_results": "100",
-        "since_id": end_trigger
-    }
+    # First query. If no results & no error -> Return emtpy list
     json_response = connect_to_endpoint(url, params, bearer_token)
-    meta, tweets = json_response["meta"], json_response["data"]
-    new_mentions.extend(tweets)
+    meta = json_response["meta"]
+    if "data" not in json_response:
+        return []
 
-    # Continue querying until last (=oldest) page reached
+    # Else continue querying until last (=oldest) page reached
+    tweets = json_response["data"]
+    out_list.extend(tweets)
+
     while "next_token" in meta:
 
         params["pagination_token"] = meta["next_token"]
@@ -72,12 +79,48 @@ def get_new_mentions(user_id, last_queried_path, bearer_token):
         if "data" in json_response:
 
             tweets = json_response["data"]
-            new_mentions.extend(tweets)
+            out_list.extend(tweets)
 
-            if meta["newest_id"] > newest_id:
-                newest_id = meta["newest_id"]
+    return out_list
 
-    # Update most recent id queried -> store in json file
+def backup_end_triggers(json_path) -> None:
+    """Creates a backup of most recent known tweet ids before running script."""
+    out_path = json_path.replace(".json", "BAK.txt")
+    id_dict = read_from_json(json_path)
+    write_to_json(id_dict, out_path)
+
+def get_query_params() -> dict:
+    """Tweet information returned by api is defined here."""
+    params = {
+        "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
+            "referenced_tweets,conversation_id",
+        "user.fields": "id,username,entities,public_metrics",
+        "max_results": "100"
+    }
+    return params
+
+def get_new_mentions(user_id, last_queried_path, bearer_token):
+    """
+    Queries mentions timeline of Twitter user until tweet id from
+    {last_queried_path} encountered. Returns list of all tweets newer
+    than that id. Updates this tweet id with newest id from this query.
+    """
+    # Get most recent tweet id fetched by this method last time
+    last_queried = read_from_json(last_queried_path)
+    end_trigger = last_queried["id_last_mentioned_jediswap"]
+    end_trigger = '1622149104812843008' # TODO: Remove (for testing only)
+
+    # Define query parameters & query for tweets. Skip rest if no results
+    url = "https://api.twitter.com/2/users/{}/mentions".format(user_id)
+    params = get_query_params()
+    params["since_id"] = end_trigger
+    new_mentions = paginated_query(url, params, bearer_token)
+    if new_mentions == []:
+        return []
+
+    # Update most recent id in json file
+    newest_from_query = sorted(new_mentions, key=lambda x: x["id"])[-1]["id"]
+    newest_id = max(end_trigger, newest_from_query)
     last_queried["id_last_mentioned_jediswap"] = newest_id
     write_to_json(last_queried, last_queried_path)
 
@@ -93,43 +136,22 @@ def get_new_tweets_by_user(user_id, last_queried_path, bearer_token):
     {last_queried_path} encountered. Returns list of all tweets newer
     than that id. Updates this tweet id in the end. Retweets are filtered out!
     """
-    new_tweets = []
-    last_queried = read_from_json(last_queried_path)
-
     # Get most recent tweet id fetched by this method last time
+    last_queried = read_from_json(last_queried_path)
     end_trigger = last_queried["id_last_jediswap_tweet"]
-    #end_trigger = "1621149172740268032" # Random tweet id (for testing only)
-    newest_id = end_trigger
+    end_trigger = "1621149172740268032" # Random tweet id (for testing only)
 
-    # Define query parameters & return first page. Continue if more exist
+    # Define query parameters & query for tweets. Skip rest if no results
     url = "https://api.twitter.com/2/users/{}/tweets".format(user_id)
-    params = {
-        "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
-            "referenced_tweets,conversation_id",
-        "user.fields": "id,username,entities,public_metrics",
-        "max_results": "100",
-        "since_id": end_trigger
-    }
-    json_response = connect_to_endpoint(url, params, bearer_token)
-    meta, tweets = json_response["meta"], json_response["data"]
-    new_tweets.extend(tweets)
+    params = get_query_params()
+    params["since_id"] = end_trigger
+    new_tweets = paginated_query(url, params, bearer_token)
+    if new_tweets == []:
+        return []
 
-    # Continue querying until last (=oldest) page reached
-    while "next_token" in meta:
-
-        params["pagination_token"] = meta["next_token"]
-        json_response = connect_to_endpoint(url, params, bearer_token)
-        meta = json_response["meta"]
-
-        if "data" in json_response:
-
-            tweets = json_response["data"]
-            new_tweets.extend(tweets)
-
-            if meta["newest_id"] > newest_id:
-                newest_id = meta["newest_id"]
-
-    # Update most recent id queried -> store in json file
+    # Update most recent id in json file
+    newest_from_query = sorted(new_tweets, key=lambda x: x["id"])[-1]["id"]
+    newest_id = max(end_trigger, newest_from_query)
     last_queried["id_last_jediswap_tweet"] = newest_id
     write_to_json(last_queried, last_queried_path)
 
@@ -144,37 +166,13 @@ def get_new_tweets_by_user(user_id, last_queried_path, bearer_token):
 
 def get_quotes_for_tweet(tweet_id, bearer_token):
     """Queries API for all quote tweets of {tweet_id}."""
-    quotes = []
 
-    # Define query parameters & return first page. Continue if more exist
+    # Define query parameters & query for tweets. Skip rest if no results
     url = "https://api.twitter.com/2/tweets/{}/quote_tweets".format(tweet_id)
-    params = {
-        "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
-            "referenced_tweets,conversation_id",
-        "user.fields": "id,username,entities,public_metrics",
-        "max_results": "100",
-    }
-    json_response = connect_to_endpoint(url, params, bearer_token)
-    meta = json_response["meta"]
-
-    # Return emtpy list if no quotes found
-    if "data" not in json_response:
+    params = get_query_params()
+    quotes = paginated_query(url, params, bearer_token, infinite=True)
+    if quotes == []:
         return []
-
-    tweets = json_response["data"]
-    quotes.extend(tweets)
-
-    # Continue querying until last (=oldest) page reached
-    while "next_token" in meta:
-
-        params["pagination_token"] = meta["next_token"]
-        json_response = connect_to_endpoint(url, params, bearer_token)
-        meta = json_response["meta"]
-
-        if "data" in json_response:
-
-            tweets = json_response["data"]
-            quotes.extend(tweets)
 
     # Add source attribute to tweets to trace potential bugs back to origin
     func_name = str(inspect.currentframe().f_code.co_name + "()")
@@ -198,23 +196,90 @@ def get_new_quote_tweets(user_id, last_queried_path, bearer_token):
         quotes = get_quotes_for_tweet(t_id, bearer_token)
         new_quotes.extend(quotes)
 
-    # Add source attribute to tweets to trace potential bugs back to origin
-    func_name = str(inspect.currentframe().f_code.co_name + "()")
-    [x.update({"source": func_name}) for x in new_quotes]
-
     return new_quotes
 
+def remove_if_regex_matches(tweets, regex_p, discarded_json_path, discarded_key, regex_flag=None) -> list:
+    """
+    Takes a list of tweets. Discards where {regex_pattern} matches in tweet["text"].
+    Saves/overwrites all discarded tweets to {discarded_json_path}, according to the
+    {discarded_key} specified.
+    """
+    discarded = []
+    out_tweets = []
+    flags = 0
 
-new_mentions = get_new_mentions(jediswap_user_id, last_queried_path, bearer_token)
-new_jediswap_tweets = get_new_tweets_by_user(jediswap_user_id, last_queried_path, bearer_token)
-new_quotes = get_new_quote_tweets(jediswap_user_id, last_queried_path, bearer_token)
+    if regex_flag == "multiline":
+        flags = re.M
+    if regex_flag == "dotall":
+        flags |= re.S
+    if regex_flag == "verbose":
+        flags |= re.X
+    if regex_flag == "ignorecase":
+        flags |= re.I
+    if regex_flag == "uni_code":
+        flags |= re.U
+
+    # Drop each tweet where regex matches
+    for t in tweets:
+        if re.search(regex_p, t["text"], flags=flags):
+            discarded.append(t)
+        else:
+            out_tweets.append(t)
+
+    # Save discarded tweets to json (for loading)
+    out_d = read_from_json(discarded_json_path)
+    out_d[discarded_key] = discarded
+    write_to_json(out_d, discarded_json_path)
+
+    # Save discarded tweets to txt (for viewing)
+    outf = discarded_json_path.replace(".json", f"_{discarded_key}.txt")
+    with open(outf, "w") as f:
+        pf = pformat(discarded)
+        f.write(pf)
+
+    return out_tweets
+
+def apply_filters(tweets, filters, discarded_json_path) -> list:
+    """
+    Takes a list of tweets. Returns the same list with all tweets removed where
+    one of the regex {filter_patterns} matches in tweet["text"].
+    Stores discarded tweets in json file, ordered by pattern name.
+    """
+
+    filtered_tweets = deepcopy(tweets)
+
+    # Wipe old json file
+    write_to_json(dict(), discarded_json_path)
+
+    # Apply filters iteratively
+    for f in filters:
+
+        filtered_tweets = remove_if_regex_matches(
+            filtered_tweets,
+            regex_p=f["pattern"],
+            discarded_json_path=discarded_json_path,
+            discarded_key=f["name"],
+            regex_flag=f["name"]
+        )
+
+    return filtered_tweets
+
+
+#backup_end_triggers(last_queried_path)
+#new_mentions = get_new_mentions(jediswap_user_id, last_queried_path, bearer_token)
+#new_jediswap_tweets = get_new_tweets_by_user(jediswap_user_id, last_queried_path, bearer_token)
+#new_quotes = get_new_quote_tweets(jediswap_user_id, last_queried_path, bearer_token)
+
+#TODO: Merge tweets from different sources & drop duplicate ids
+
+filtered_tweets = apply_filters(tweets, filter_patterns, discarded_path)
 
 
 # DONE: Implement querying based on mentions of JediSwap account
 # DONE: Implement querying based on quote tweets of tweets of JediSwap account
+# DONE: Abstract away repetetive code
 # TODO: Check which tweet attributes are needed, include expansion object while querying
-# TODO: Filter out retweets using t["text"].startswith("RT") right after querying
-# TODO: Filter out tweets with too many mentions right after querying using regex
+# DONE: Filter out retweets using t["text"].startswith("RT") right after querying
+# DONE: Filter out tweets with too many mentions right after querying using regex
 # TODO: Merge tweet lists using sets & unions in the end to rule out doubles
-# TODO: Generate csv data since Feb for debugging
 # TODO: Rewrite main script to work with now very different input data
