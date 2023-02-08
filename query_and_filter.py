@@ -1,15 +1,19 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """
 In this file the functions for the scheduled querying of Twitter are defined.
 Some filtering is also done at this level, i.e. any retweets are dropped.
 """
 
+import os
 import inspect
 import requests
 import re
 from pprint import pp, pformat
 from copy import deepcopy
 from dotenv import load_dotenv
-from functions_twitter import *
+from helpers import *
 load_dotenv('./.env')
 
 
@@ -20,9 +24,9 @@ last_queried_path = "./last_queried.json"
 # Any filtered-out tweets go here for checking if filters work correctly
 discarded_path = "./discarded_tweets.json"
 
-new_jediswap_tweets = []   # New tweets by official JediSwap will be appended here
-new_mentions = []          # New tweets mentioning JediSwap will be appended here
-new_quotes = []            # New tweets quoting JediSwap tweets will be appended here
+#new_jediswap_tweets = []   # New tweets by official JediSwap will be appended here
+#new_mentions = []          # New tweets mentioning JediSwap will be appended here
+#new_quotes = []            # New tweets quoting JediSwap tweets will be appended here
 
 # Regex filter patterns. Any tweet where a pattern matches the tweet text gets dropped.
 filter_patterns = [{
@@ -264,15 +268,27 @@ def apply_filters(tweets, filters, discarded_json_path) -> list:
 
     return filtered_tweets
 
+def get_filtered_tweets():
+    """Wrapper function to cleanly return dict of tweets ordered by tweet id."""
 
-#backup_end_triggers(last_queried_path)
-#new_mentions = get_new_mentions(jediswap_user_id, last_queried_path, bearer_token)
-#new_jediswap_tweets = get_new_tweets_by_user(jediswap_user_id, last_queried_path, bearer_token)
-#new_quotes = get_new_quote_tweets(jediswap_user_id, last_queried_path, bearer_token)
+    # Fetch all new data since last queried
+    backup_end_triggers(last_queried_path)
+    new_mentions = get_new_mentions(jediswap_user_id, last_queried_path, bearer_token)
+    new_quotes = get_new_quote_tweets(jediswap_user_id, last_queried_path, bearer_token)
 
-#TODO: Merge tweets from different sources & drop duplicate ids
+    # Merge to one list & keep only 1 entry per tweet id
+    tweets = merge_unique([new_mentions, new_quotes], unique_att="id")
 
-filtered_tweets = apply_filters(tweets, filter_patterns, discarded_path)
+    # Apply regex filters
+    filtered_tweets = apply_filters(tweets, filter_patterns, discarded_path)
+
+    # Convert to dictionary and return
+    out_d = {t["id"]: t for t in filtered_tweets}
+    return out_d
+
+
+if __name__ == "__main__":
+    get_filtered_tweets()
 
 
 # DONE: Implement querying based on mentions of JediSwap account
@@ -281,5 +297,6 @@ filtered_tweets = apply_filters(tweets, filter_patterns, discarded_path)
 # TODO: Check which tweet attributes are needed, include expansion object while querying
 # DONE: Filter out retweets using t["text"].startswith("RT") right after querying
 # DONE: Filter out tweets with too many mentions right after querying using regex
-# TODO: Merge tweet lists using sets & unions in the end to rule out doubles
+# DONE: Merge tweet lists and discard doubles based on tweet id
 # TODO: Rewrite main script to work with now very different input data
+# TODO: Add other filters (i.e. 'Red flag')
