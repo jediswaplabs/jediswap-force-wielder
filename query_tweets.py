@@ -5,18 +5,33 @@ Some filtering is also done at this level, i.e. any retweets are dropped.
 
 import inspect
 import requests
+import re
+from pprint import pp, pformat
+from copy import deepcopy
 from dotenv import load_dotenv
 from functions_twitter import *
 load_dotenv('./.env')
 
-# Json file containing the most recent tweet id per function
-last_queried_path = "./last_queried.json"
+
 jediswap_user_id = "1470315931142393857"
 bearer_token = os.environ.get("TW_BEARER_TOKEN")
+# Json file containing the most recent tweet id queried per function
+last_queried_path = "./last_queried.json"
+# Any filtered-out tweets go here for checking if filters work correctly
+discarded_path = "./discarded_tweets.json"
 
 new_jediswap_tweets = []   # New tweets by official JediSwap will be appended here
 new_mentions = []          # New tweets mentioning JediSwap will be appended here
 new_quotes = []            # New tweets quoting JediSwap tweets will be appended here
+
+# Regex filter patterns. Any tweet where a pattern matches the tweet text gets dropped.
+filter_patterns = [{
+    "name": "more_than_5_mentions",
+    "pattern" : r"@\w+\s.*@\w+\s.*@\w+\s.*@\w+\s.*@\w+",
+    "flag": "dotall"
+    },
+]
+
 
 def bearer_oauth(r) -> dict:
     """Method required by bearer token authentication."""
@@ -183,17 +198,88 @@ def get_new_quote_tweets(user_id, last_queried_path, bearer_token):
 
     return new_quotes
 
+def remove_if_regex_matches(tweets, regex_p, discarded_json_path, discarded_key, regex_flag=None) -> list:
+    """
+    Takes a list of tweets. Discards where {regex_pattern} matches in tweet["text"].
+    Saves/overwrites all discarded tweets to {discarded_json_path}, according to the
+    {discarded_key} specified.
+    """
+    discarded = []
+    out_tweets = []
+    flags = 0
+
+    if regex_flag == "multiline":
+        flags = re.M
+    if regex_flag == "dotall":
+        flags |= re.S
+    if regex_flag == "verbose":
+        flags |= re.X
+    if regex_flag == "ignorecase":
+        flags |= re.I
+    if regex_flag == "uni_code":
+        flags |= re.U
+
+    # Drop each tweet where regex matches
+    for t in tweets:
+        if re.search(regex_p, t["text"], flags=flags):
+            discarded.append(t)
+        else:
+            out_tweets.append(t)
+
+    # Save discarded tweets to json (for loading)
+    out_d = read_from_json(discarded_json_path)
+    out_d[discarded_key] = discarded
+    write_to_json(out_d, discarded_json_path)
+
+    # Save discarded tweets to txt (for viewing)
+    outf = discarded_json_path.replace(".json", f"_{discarded_key}.txt")
+    with open(outf, "w") as f:
+        pf = pformat(discarded)
+        f.write(pf)
+
+    return out_tweets
+
+def apply_filters(tweets, filters, discarded_json_path) -> list:
+    """
+    Takes a list of tweets. Returns the same list with all tweets removed where
+    one of the regex {filter_patterns} matches in tweet["text"].
+    Stores discarded tweets in json file, ordered by pattern name.
+    """
+
+    filtered_tweets = deepcopy(tweets)
+
+    # Wipe old json file
+    write_to_json(dict(), discarded_json_path)
+
+    # Apply filters iteratively
+    for f in filters:
+
+        filtered_tweets = remove_if_regex_matches(
+            filtered_tweets,
+            regex_p=f["pattern"],
+            discarded_json_path=discarded_json_path,
+            discarded_key=f["name"],
+            regex_flag=f["name"]
+        )
+
+    return filtered_tweets
+
+
 #backup_end_triggers(last_queried_path)
 #new_mentions = get_new_mentions(jediswap_user_id, last_queried_path, bearer_token)
 #new_jediswap_tweets = get_new_tweets_by_user(jediswap_user_id, last_queried_path, bearer_token)
 #new_quotes = get_new_quote_tweets(jediswap_user_id, last_queried_path, bearer_token)
+
+#TODO: Merge tweets from different sources & drop duplicate ids
+
+filtered_tweets = apply_filters(tweets, filter_patterns, discarded_path)
 
 
 # DONE: Implement querying based on mentions of JediSwap account
 # DONE: Implement querying based on quote tweets of tweets of JediSwap account
 # DONE: Abstract away repetetive code
 # TODO: Check which tweet attributes are needed, include expansion object while querying
-# TODO: Filter out retweets using t["text"].startswith("RT") right after querying
-# TODO: Filter out tweets with too many mentions right after querying using regex
+# DONE: Filter out retweets using t["text"].startswith("RT") right after querying
+# DONE: Filter out tweets with too many mentions right after querying using regex
 # TODO: Merge tweet lists using sets & unions in the end to rule out doubles
 # TODO: Rewrite main script to work with now very different input data
