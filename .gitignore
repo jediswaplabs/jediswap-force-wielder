@@ -4,6 +4,7 @@
 # Except for these files
 !readme.md
 !query_and_filter.py
+!pandas_pipes.py
 !functions_twitter.py
 !csv_handler.py
 !main.py

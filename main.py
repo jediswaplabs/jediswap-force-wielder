@@ -13,7 +13,7 @@ Written by Al Matty - github.com/al-matty
 """
 
 from query_and_filter import get_filtered_tweets
-from csv_handler import transform, save_csv, create_discarded_csvs
+from pandas_pipeline import *
 from helpers import obvious_print
 
 out_path = "./Force_Wielders_Data_beta.csv"
@@ -24,20 +24,23 @@ new_tweets = get_filtered_tweets()
 in_df = pd.DataFrame.from_dict(new_tweets, orient="index")
 
 # Perform all needed transformations of data
-obvious_print("Generating output data...")
-out_df = transform(in_df)
+out_df = (in_df.pipe(start_pipeline)
+    .pipe(replace_nans)
+    .pipe(add_parsed_time)
+    .pipe(rename_columns, to_rename)
+    .pipe(extract_public_metrics)
+    .pipe(add_month)
+    .pipe(drop_columns, to_drop)
+    .pipe(reorder, final_order)
+)
 
-# Save result locally as csv
-obvious_print("Saving csv...")
-save_csv(out_df, out_path, sep=",", sort_by=None)
+# Save data locally as csv & show preview
+out_df.to_csv(out_path, sep=sep, index=False)
+print("Created", out_path.lstrip("./"), "\n")
+print(out_df.head(10))
 
 # Create csv files for dropped tweets
 obvious_print("Creating csv files for tweets dropped during filtering stage...")
 create_discarded_csvs()
-
-
-# Print preview of df
-print(f"Created {out_path.lstrip('./')}:\n")
-print(out_df.head(10))
 
 obvious_print("Done.")

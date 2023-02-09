@@ -416,5 +416,6 @@ if __name__ == "__main__":
 # DONE: Filter out retweets using t["text"].startswith("RT") right after querying
 # DONE: Filter out tweets with too many mentions right after querying using regex
 # DONE: Merge tweet lists and discard doubles based on tweet id
-# TODO: Rewrite main script to work with the new input data
-# TODO: Add other filters
+# DONE: Rewrite main script to work with the new input data
+# TODO: Add last missing filters
+# TODO: Sanity check on filters
