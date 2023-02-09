@@ -100,7 +100,7 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
     Will abort if no end_trigger is set, unless "infinite" is set to True.
     """
     if not infinite:
-        assert "since_id" in params, ("No end for querying defined. Will query until rate limit reached!")
+        assert ("since_id" or "end_time" in params), ("No end for querying defined. Will query until rate limit reached!")
 
     tweets_list = []
     users_list = []
@@ -136,6 +136,20 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
 
     return out_list
 
+def parse_date_range(tweets: list) -> str:
+    """Takes a tweets list, returns a str of the earliest & latest tweet date."""
+    dates = sorted([t["created_at"] for t in tweets])
+    stripped = [d[:d.find('T')] for d in dates]
+    earliest = stripped[0]
+    latest = stripped[-1]
+    return f"{earliest} - {latest}"
+
+def tweets_to_json(tweets: list, name: str) -> None:
+    """Saves a tweets list to json. Appends its date range to name."""
+    date_range = parse_date_range(tweets)
+    out_name = f"{date_range} unfiltered {name}"
+    write_list_to_json(tweets, out_name)
+
 def backup_end_triggers(json_path) -> None:
     """Creates a backup of most recent known tweet ids before running script."""
     out_path = json_path.replace(".json", "BAK.txt")
@@ -152,6 +166,7 @@ def get_new_mentions(user_id, last_queried_path, bearer_token):
     last_queried = read_from_json(last_queried_path)
     end_trigger = last_queried["id_last_mentioned_jediswap"]
     end_trigger = '1622149104812843008' # TODO: Remove (for testing only)
+
 
     # Define query parameters & query for tweets. Skip rest if no results
     url = "https://api.twitter.com/2/users/{}/mentions".format(user_id)
@@ -171,6 +186,9 @@ def get_new_mentions(user_id, last_queried_path, bearer_token):
     func_name = str(inspect.currentframe().f_code.co_name + "()")
     [x.update({"source": func_name}) for x in new_mentions]
 
+    # Save queried data to json as backup
+    tweets_to_json(new_mentions, func_name)
+
     return new_mentions
 
 def get_new_tweets_by_user(user_id, last_queried_path, bearer_token):
@@ -183,6 +201,7 @@ def get_new_tweets_by_user(user_id, last_queried_path, bearer_token):
     last_queried = read_from_json(last_queried_path)
     end_trigger = last_queried["id_last_jediswap_tweet"]
     end_trigger = "1621149172740268032" # Random tweet id (for testing only)
+    end_trigger = "1609465384327077889" # first JediSwap tweet 2023!
 
     # Define query parameters & query for tweets. Skip rest if no results
     url = "https://api.twitter.com/2/users/{}/tweets".format(user_id)
@@ -204,6 +223,9 @@ def get_new_tweets_by_user(user_id, last_queried_path, bearer_token):
     # Add source attribute to tweets to trace potential bugs back to origin
     func_name = str(inspect.currentframe().f_code.co_name + "()")
     [x.update({"source": func_name}) for x in new_tweets]
+
+    # Save queried data to json as backup
+    tweets_to_json(new_tweets, func_name)
 
     return new_tweets
 
@@ -238,6 +260,9 @@ def get_new_quote_tweets(user_id, last_queried_path, bearer_token):
     for t_id in tweet_ids:
         quotes = get_quotes_for_tweet(t_id, bearer_token)
         new_quotes.extend(quotes)
+
+    # Save queried data to json as backup
+    tweets_to_json(new_quotes, func_name)
 
     return new_quotes
 
