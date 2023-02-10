@@ -56,8 +56,12 @@ filter_patterns = [
     "pattern" : r"airdrop",
     "flag": "ignorecase"
     },
+    {
+    "name": "retweets",
+    "pattern" : r"^RT",
+    "flag": None
+    }
 ]
-
 
 def bearer_oauth(r) -> dict:
     """Method required by bearer token authentication."""
@@ -407,15 +411,3 @@ def get_filtered_tweets(add_params=None) -> dict:
 
 if __name__ == "__main__":
     get_filtered_tweets()
-
-
-# DONE: Implement querying based on mentions of JediSwap account
-# DONE: Implement querying based on quote tweets of tweets of JediSwap account
-# DONE: Abstract away repetetive code
-# DONE: Check which tweet attributes are needed, include "expansions" object while querying
-# DONE: Filter out retweets using t["text"].startswith("RT") right after querying
-# DONE: Filter out tweets with too many mentions right after querying using regex
-# DONE: Merge tweet lists and discard doubles based on tweet id
-# DONE: Rewrite main script to work with the new input data
-# TODO: Add last missing filters
-# TODO: Sanity check on filters
