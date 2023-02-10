@@ -57,7 +57,7 @@ filter_patterns = [
     "flag": "ignorecase"
     },
     {
-    "name": "retweets",
+    "name": "is_retweet",
     "pattern" : r"^RT",
     "flag": None
     }
@@ -189,7 +189,7 @@ def get_new_mentions(user_id, last_queried_path, bearer_token, add_params=None):
     """
     # Get most recent tweet id fetched by this method last time
     last_queried = read_from_json(last_queried_path)
-    end_trigger = last_queried["id_last_mentioned_jediswap"]
+    end_trigger = last_queried["id_of_last_mention"]
 
     # Define query parameters
     url = "https://api.twitter.com/2/users/{}/mentions".format(user_id)
@@ -208,7 +208,7 @@ def get_new_mentions(user_id, last_queried_path, bearer_token, add_params=None):
     # Update most recent id in json file
     newest_from_query = sorted(new_mentions, key=lambda x: x["id"])[-1]["id"]
     newest_id = max(end_trigger, newest_from_query)
-    last_queried["id_last_mentioned_jediswap"] = newest_id
+    last_queried["id_of_last_mention"] = newest_id
     write_to_json(last_queried, last_queried_path)
 
     # Add source attribute to tweets to trace potential bugs back to origin
@@ -228,7 +228,7 @@ def get_new_tweets_by_user(user_id, last_queried_path, bearer_token, add_params=
     """
     # Get most recent tweet id fetched by this method last time
     last_queried = read_from_json(last_queried_path)
-    end_trigger = last_queried["id_last_jediswap_tweet"]
+    end_trigger = last_queried["id_of_last_tweet"]
 
     # Define query parameters
     url = "https://api.twitter.com/2/users/{}/tweets".format(user_id)
@@ -247,7 +247,7 @@ def get_new_tweets_by_user(user_id, last_queried_path, bearer_token, add_params=
     # Update most recent id in json file
     newest_from_query = sorted(new_tweets, key=lambda x: x["id"])[-1]["id"]
     newest_id = max(end_trigger, newest_from_query)
-    last_queried["id_last_jediswap_tweet"] = newest_id
+    last_queried["id_of_last_tweet"] = newest_id
     write_to_json(last_queried, last_queried_path)
 
     # Filter out retweets
