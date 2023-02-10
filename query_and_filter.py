@@ -8,8 +8,8 @@ Reads query cut-off points (tweet ids) from last execution {last_queried_path}.
 These become the timestamps until which tweets will be queried.
 After filtering: Returns a merged dictionary of unique tweets containing:
 
-    1) every new mention of {jediswap_user_id} since last execution
-    2) every new quote tweet of tweets by {jediswap_user_id} since last execution
+    1) every new mention of {target_user_id} since last execution
+    2) every new quote tweet of tweets by {target_user_id} since last execution
 
 Filtering: Any tweet will be dropped if a regex pattern from {filter_patterns}
 matches within tweet["text"].
@@ -35,8 +35,8 @@ from helpers import *
 load_dotenv('./.env')
 
 
-jediswap_user_id = "1470315931142393857"
-bearer_token = os.environ.get("TW_BEARER_TOKEN")
+target_user_id = os.environ.get("TWITTER_USER_ID")
+bearer_token = os.environ.get("API_BEARER_TOKEN")
 
 # Json file containing the most recent tweet id queried per function
 last_queried_path = "./last_queried.json"
@@ -56,8 +56,12 @@ filter_patterns = [
     "pattern" : r"airdrop",
     "flag": "ignorecase"
     },
+    {
+    "name": "is_retweet",
+    "pattern" : r"^RT",
+    "flag": None
+    }
 ]
-
 
 def bearer_oauth(r) -> dict:
     """Method required by bearer token authentication."""
@@ -185,7 +189,7 @@ def get_new_mentions(user_id, last_queried_path, bearer_token, add_params=None):
     """
     # Get most recent tweet id fetched by this method last time
     last_queried = read_from_json(last_queried_path)
-    end_trigger = last_queried["id_last_mentioned_jediswap"]
+    end_trigger = last_queried["id_of_last_mention"]
 
     # Define query parameters
     url = "https://api.twitter.com/2/users/{}/mentions".format(user_id)
@@ -204,7 +208,7 @@ def get_new_mentions(user_id, last_queried_path, bearer_token, add_params=None):
     # Update most recent id in json file
     newest_from_query = sorted(new_mentions, key=lambda x: x["id"])[-1]["id"]
     newest_id = max(end_trigger, newest_from_query)
-    last_queried["id_last_mentioned_jediswap"] = newest_id
+    last_queried["id_of_last_mention"] = newest_id
     write_to_json(last_queried, last_queried_path)
 
     # Add source attribute to tweets to trace potential bugs back to origin
@@ -224,7 +228,7 @@ def get_new_tweets_by_user(user_id, last_queried_path, bearer_token, add_params=
     """
     # Get most recent tweet id fetched by this method last time
     last_queried = read_from_json(last_queried_path)
-    end_trigger = last_queried["id_last_jediswap_tweet"]
+    end_trigger = last_queried["id_of_last_tweet"]
 
     # Define query parameters
     url = "https://api.twitter.com/2/users/{}/tweets".format(user_id)
@@ -243,7 +247,7 @@ def get_new_tweets_by_user(user_id, last_queried_path, bearer_token, add_params=
     # Update most recent id in json file
     newest_from_query = sorted(new_tweets, key=lambda x: x["id"])[-1]["id"]
     newest_id = max(end_trigger, newest_from_query)
-    last_queried["id_last_jediswap_tweet"] = newest_id
+    last_queried["id_of_last_tweet"] = newest_id
     write_to_json(last_queried, last_queried_path)
 
     # Filter out retweets
@@ -381,14 +385,14 @@ def get_filtered_tweets(add_params=None) -> dict:
 
     # Fetch all mentions new since last execution of script
     new_mentions = get_new_mentions(
-        jediswap_user_id,
+        target_user_id,
         last_queried_path,
         bearer_token,
         add_params=add_params
     )
     # Fetch all mentions new since last execution of script
     new_quotes = get_new_quote_tweets(
-        jediswap_user_id,
+        target_user_id,
         last_queried_path,
         bearer_token,
         add_params=add_params
@@ -407,15 +411,3 @@ def get_filtered_tweets(add_params=None) -> dict:
 
 if __name__ == "__main__":
     get_filtered_tweets()
-
-
-# DONE: Implement querying based on mentions of JediSwap account
-# DONE: Implement querying based on quote tweets of tweets of JediSwap account
-# DONE: Abstract away repetetive code
-# DONE: Check which tweet attributes are needed, include "expansions" object while querying
-# DONE: Filter out retweets using t["text"].startswith("RT") right after querying
-# DONE: Filter out tweets with too many mentions right after querying using regex
-# DONE: Merge tweet lists and discard doubles based on tweet id
-# DONE: Rewrite main script to work with the new input data
-# TODO: Add last missing filters
-# TODO: Sanity check on filters

@@ -13,7 +13,7 @@ Written by Al Matty - github.com/al-matty
 """
 
 from query_and_filter import get_filtered_tweets
-from pandas_pipeline import *
+from pandas_pipes import *
 from helpers import obvious_print
 
 out_path = "./Force_Wielders_Data_beta.csv"
@@ -35,7 +35,7 @@ out_df = (in_df.pipe(start_pipeline)
 )
 
 # Save data locally as csv & show preview
-out_df.to_csv(out_path, sep=sep, index=False)
+out_df.to_csv(out_path, sep=",", index=False)
 print("Created", out_path.lstrip("./"), "\n")
 print(out_df.head(10))
 
@@ -44,3 +44,15 @@ obvious_print("Creating csv files for tweets dropped during filtering stage...")
 create_discarded_csvs()
 
 obvious_print("Done.")
+
+
+# DONE: Implement querying based on mentions of JediSwap account
+# DONE: Implement querying based on quote tweets of tweets of JediSwap account
+# DONE: Abstract away repetetive code
+# DONE: Check which tweet attributes are needed, include "expansions" object while querying
+# DONE: Filter out retweets using t["text"].startswith("RT") right after querying
+# DONE: Filter out tweets with too many mentions right after querying using regex
+# DONE: Merge tweet lists and discard doubles based on tweet id
+# DONE: Rewrite main script to work with the new input data
+# TODO: Add last missing filters
+# TODO: Sanity check on filters
