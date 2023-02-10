@@ -5,10 +5,32 @@ All pandas-related functions are defined here.
 import pandas as pd
 import datetime as dt
 
+to_rename = {}    # {"old_name": "new_name", ...}
 
-renamed = {}
-dropped = ["edit_history_tweet_ids", "public_metrics"]
-final_order = ["id"]
+to_drop = ["edit_history_tweet_ids", "public_metrics"]
+
+final_order = [
+    "month",
+    "parsed_time",
+    "id",
+    "conversation_id",
+    "impression_count",
+    "reply_count",
+    "retweet_count",
+    "like_count",
+    "quote_count",
+    "text",
+    "in_reply_to_user_id",
+    "created_at",
+    "source",
+    "username",
+    "author_id",
+    "followers_count",
+    "following_count",
+    "tweet_count",
+    "listed_count",
+    "referenced_tweets",
+]
 
 
 def start_pipeline(df) -> pd.DataFrame:
@@ -16,7 +38,7 @@ def start_pipeline(df) -> pd.DataFrame:
     return df.copy()
 
 def replace_nans(df) -> pd.DataFrame:
-    """Replace nan's with False (bool)."""
+    """Replace any nan with False (bool)."""
     df.fillna(value=False, inplace=True)
     return df
 
@@ -37,7 +59,7 @@ def add_parsed_time(df) -> pd.DataFrame:
     return df
 
 def add_month(df) -> pd.DataFrame:
-    df['Month'] = df['parsed_time'].dt.month_name()
+    df['month'] = df['parsed_time'].dt.month_name()
     return df
 
 def apply_and_concat(dataframe, field, func, column_names) -> pd.DataFrame:
@@ -52,7 +74,7 @@ def apply_and_concat(dataframe, field, func, column_names) -> pd.DataFrame:
             lambda cell: pd.Series(func(cell), index=column_names))), axis=1)
 
 def extract_public_metrics(df) -> pd.DataFrame:
-    """Adds dictionary entries as new columns."""
+    """Adds specific dictionary entries as new columns."""
     def extract_from_dict(dict_field) -> tuple:
         d = dict_field
         return (

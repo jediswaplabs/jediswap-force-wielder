@@ -37,6 +37,7 @@ load_dotenv('./.env')
 
 target_user_id = os.environ.get("TWITTER_USER_ID")
 bearer_token = os.environ.get("API_BEARER_TOKEN")
+csv_order = final_order
 
 # Json file containing the most recent tweet id queried per function
 last_queried_path = "./last_queried.json"
@@ -48,7 +49,7 @@ discarded_path = "./discarded_tweets.json"
 filter_patterns = [
     {
     "name": "more_than_5_mentions",
-    "pattern" : r"@\w+\s.*@\w+\s.*@\w+\s.*@\w+\s.*@\w+\s.*@\w+",
+    "pattern" : r"@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+",
     "flag": "dotall"
     },
     {
@@ -57,7 +58,7 @@ filter_patterns = [
     "flag": "ignorecase"
     },
     {
-    "name": "is_retweet",
+    "name": "retweets",
     "pattern" : r"^RT",
     "flag": None
     }
@@ -340,11 +341,10 @@ def remove_if_regex_matches(tweets, regex_p, discarded_json_path, discarded_key,
     out_d[discarded_key] = discarded
     write_to_json(out_d, discarded_json_path)
 
-    # Save discarded tweets to txt (for viewing)
-    outf = discarded_json_path.replace(".json", f"_{discarded_key}.txt")
-    with open(outf, "w") as f:
-        pf = pformat(discarded)
-        f.write(pf)
+    # Save discarded tweets to csv (for sharing)
+    csv_path = discarded_json_path.replace(".json", f"_{discarded_key}.csv")
+    include = ['id', 'text', 'created_at', 'username', 'author_id']
+    pd.DataFrame(discarded)[include].to_csv(csv_path, sep=",", index=False)
 
     return out_tweets
 
@@ -355,23 +355,21 @@ def apply_filters(tweets, filters, discarded_json_path) -> list:
     Stores discarded tweets in json file, ordered by pattern name.
     """
 
-    filtered_tweets = deepcopy(tweets)
-
     # Wipe old json file
     write_to_json(dict(), discarded_json_path)
 
     # Apply filters iteratively
     for f in filters:
 
-        filtered_tweets = remove_if_regex_matches(
-            filtered_tweets,
+        tweets = remove_if_regex_matches(
+            tweets,
             regex_p=f["pattern"],
             discarded_json_path=discarded_json_path,
             discarded_key=f["name"],
-            regex_flag=f["name"]
+            regex_flag=f["flag"]
         )
 
-    return filtered_tweets
+    return tweets
 
 def get_filtered_tweets(add_params=None) -> dict:
     """
@@ -404,8 +402,9 @@ def get_filtered_tweets(add_params=None) -> dict:
     # Apply regex filters
     filtered_tweets = apply_filters(tweets, filter_patterns, discarded_path)
 
-    # Convert to dictionary and return
+    # Convert to dictionary
     out_d = {t["id"]: t for t in filtered_tweets}
+
     return out_d
 
 

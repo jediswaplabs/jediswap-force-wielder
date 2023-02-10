@@ -13,8 +13,8 @@ Written by Al Matty - github.com/al-matty
 """
 
 from query_and_filter import get_filtered_tweets
-from pandas_pipes import *
 from helpers import obvious_print
+from pandas_pipes import *
 
 out_path = "./Force_Wielders_Data_beta.csv"
 
@@ -39,11 +39,6 @@ out_df.to_csv(out_path, sep=",", index=False)
 print("Created", out_path.lstrip("./"), "\n")
 print(out_df.head(10))
 
-# Create csv files for dropped tweets
-obvious_print("Creating csv files for tweets dropped during filtering stage...")
-create_discarded_csvs()
-
-obvious_print("Done.")
 
 
 # DONE: Implement querying based on mentions of JediSwap account
@@ -54,5 +49,5 @@ obvious_print("Done.")
 # DONE: Filter out tweets with too many mentions right after querying using regex
 # DONE: Merge tweet lists and discard doubles based on tweet id
 # DONE: Rewrite main script to work with the new input data
-# TODO: Add last missing filters
-# TODO: Sanity check on filters
+# DONE: Add last missing filters
+# DONE: Sanity check on filters

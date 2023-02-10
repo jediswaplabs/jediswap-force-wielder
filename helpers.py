@@ -1,6 +1,5 @@
 import json
 
-
 def write_to_json(_dict, path) -> None:
     with open(path, 'w') as jfile:
         json_object = json.dump(_dict, jfile, indent=1, default=str)
