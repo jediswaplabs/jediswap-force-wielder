@@ -35,7 +35,7 @@ out_df = (in_df.pipe(start_pipeline)
 )
 
 # Save data locally as csv & show preview
-out_df.to_csv(out_path, sep=sep, index=False)
+out_df.to_csv(out_path, sep=",", index=False)
 print("Created", out_path.lstrip("./"), "\n")
 print(out_df.head(10))
 
