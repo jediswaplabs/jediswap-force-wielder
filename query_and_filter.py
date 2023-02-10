@@ -8,8 +8,8 @@ Reads query cut-off points (tweet ids) from last execution {last_queried_path}.
 These become the timestamps until which tweets will be queried.
 After filtering: Returns a merged dictionary of unique tweets containing:
 
-    1) every new mention of {jediswap_user_id} since last execution
-    2) every new quote tweet of tweets by {jediswap_user_id} since last execution
+    1) every new mention of {target_user_id} since last execution
+    2) every new quote tweet of tweets by {target_user_id} since last execution
 
 Filtering: Any tweet will be dropped if a regex pattern from {filter_patterns}
 matches within tweet["text"].
@@ -35,8 +35,8 @@ from helpers import *
 load_dotenv('./.env')
 
 
-jediswap_user_id = "1470315931142393857"
-bearer_token = os.environ.get("TW_BEARER_TOKEN")
+target_user_id = os.environ.get("TWITTER_USER_ID")
+bearer_token = os.environ.get("API_BEARER_TOKEN")
 
 # Json file containing the most recent tweet id queried per function
 last_queried_path = "./last_queried.json"
@@ -381,14 +381,14 @@ def get_filtered_tweets(add_params=None) -> dict:
 
     # Fetch all mentions new since last execution of script
     new_mentions = get_new_mentions(
-        jediswap_user_id,
+        target_user_id,
         last_queried_path,
         bearer_token,
         add_params=add_params
     )
     # Fetch all mentions new since last execution of script
     new_quotes = get_new_quote_tweets(
-        jediswap_user_id,
+        target_user_id,
         last_queried_path,
         bearer_token,
         add_params=add_params
