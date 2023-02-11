@@ -51,3 +51,9 @@ print(out_df.head(10))
 # DONE: Rewrite main script to work with the new input data
 # DONE: Add last missing filters
 # DONE: Sanity check on filters
+
+# TODO: Append to monthly csv instead of replacing
+# TODO: Handle TooManyRequests Errors (notice of gap + append fetched data anyway)
+# TODO: Infer query cutoff ts's from data & create empty csv if no data yet (for appending)
+# TODO: Add & use .env key for first ts string if script run for first time
+# TODO: Wrapper for monthly filters + discretizing csv into monthly files
