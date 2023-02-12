@@ -9,7 +9,7 @@ to_rename = {}    # {"old_name": "new_name", ...}
 
 to_drop = ["edit_history_tweet_ids", "public_metrics"]
 
-final_order = [
+final_order = [        # <- also used for header csv file if newly created
     "month",
     "parsed_time",
     "id",
