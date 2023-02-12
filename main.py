@@ -12,18 +12,23 @@ Twitter API limitations:
 Written by Al Matty - github.com/al-matty
 """
 
-from query_and_filter import get_filtered_tweets
-from helpers import obvious_print
+from query_and_filter import get_filtered_tweets, get_cutoffs
+from helpers import obvious_print, get_max
 from pandas_pipes import *
 
 out_path = "./Force_Wielders_Data_beta.csv"
+first_run = not os.path.exists(out_path)
 
-# Fetch new tweets since last execution & convert to DataFrame
+# Get most recent known tweets from dataset if it exists
+cutoff_timestamps = None if first_run else get_cutoffs(out_path)
+
+# Fetch new tweets since last execution
 obvious_print("Fetching new tweets...")
-new_tweets = get_filtered_tweets()
-in_df = pd.DataFrame.from_dict(new_tweets, orient="index")
+new_tweets = get_filtered_tweets(cutoff_timestamps)
 
 # Perform all needed transformations of data
+in_df = pd.DataFrame.from_dict(new_tweets, orient="index")
+
 out_df = (in_df.pipe(start_pipeline)
     .pipe(replace_nans)
     .pipe(add_parsed_time)
@@ -34,8 +39,10 @@ out_df = (in_df.pipe(start_pipeline)
     .pipe(reorder, final_order)
 )
 
-# Save data locally as csv & show preview
-out_df.to_csv(out_path, sep=",", index=False)
+# Save/append data locally to csv & show preview
+df.to_csv(out_path, mode="a", sep=",", index=False, header=not os.path.exists(out_path))
+
+# Show preview of newly appended data
 print("Created", out_path.lstrip("./"), "\n")
 print(out_df.head(10))
 
@@ -52,8 +59,12 @@ print(out_df.head(10))
 # DONE: Add last missing filters
 # DONE: Sanity check on filters
 
+# DONE: Infer query cutoff ts's from data if ther is data
+# DONE: Handle TooManyRequests Errors (notice of gap + append fetched data anyway)
+# DONE: Base case: Query until TooManyRequests error if not specified differently
+# TODO: Implement cutoff timestamps arg to get_filtered_tweets(), get_new_mentions() &
+#       get_new_tweets_by_user()
+# TODO: Test both starting cases for script (with & w/o csv)
 # TODO: Append to monthly csv instead of replacing
-# TODO: Handle TooManyRequests Errors (notice of gap + append fetched data anyway)
-# TODO: Infer query cutoff ts's from data & create empty csv if no data yet (for appending)
 # TODO: Add & use .env key for first ts string if script run for first time
 # TODO: Wrapper for monthly filters + discretizing csv into monthly files

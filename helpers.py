@@ -50,6 +50,10 @@ def csv_to_df(csv_path, **kwargs) -> pd.DataFrame:
     # Read the rest of the lines with the dtypes from above
     return pd.read_csv(csv_path, dtype=dtypes, parse_dates=parse_dates, skiprows=[1], **kwargs)
 
+def get_max(csv_path, col="id"):
+    """Takes a csv file, returns highest value from column {col}."""
+    return csv_to_df(csv_path)[col].max()
+
 def merge_unique(list_of_lists, unique_att="id"):
     """Merge multiple lists of dicts. Keep only one element with {unique_att}"""
     unique_tracker = set()

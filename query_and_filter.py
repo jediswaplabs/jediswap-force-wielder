@@ -28,6 +28,7 @@ import os
 import inspect
 import requests
 import re
+from ast import literal_eval
 from pprint import pp, pformat
 from copy import deepcopy
 from dotenv import load_dotenv
@@ -84,13 +85,16 @@ def connect_to_endpoint(url, params, bearer_token):
     """Wrapper for Twitter API queries."""
     response = requests.request("GET", url, auth=bearer_oauth, params=params)
     print(response.status_code)
-    if response.status_code != 200:
+
+    handled_quietly = {200, 429}
+
+    if response.status_code not in handled_quietly:
         raise Exception(
             "Request returned an error: {} {}".format(
                 response.status_code, response.text
             )
         )
-    return response.json()
+    return (response.json(), response.status_code)
 
 def merge_user_data(tweets_list, users_list):
     """
@@ -129,7 +133,14 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
     users_list = []
 
     # First query. If no results & no error -> Return emtpy list
-    json_response = connect_to_endpoint(url, params, bearer_token)
+    json_response, status_code = connect_to_endpoint(url, params, bearer_token)
+
+    # If rate limit reached (TooManyRequests) -> abort here & return empty list
+    if status_code == 429:
+        print("Rate limit reached (429: Too many requests). Returning empty list.")
+        return []
+
+    # If end of data reached (last page) -> abort here & return emtpy list
     meta = json_response["meta"]
     if "data" not in json_response:
         return []
@@ -141,10 +152,11 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
     tweets_list.extend(tweets)
     users_list.extend(users)
 
-    while "next_token" in meta:
+    # Query for a next page as long as there is one & API rate limit is not exceeded
+    while ("next_token" in meta) and status_code != 429:
 
         params["pagination_token"] = meta["next_token"]
-        json_response = connect_to_endpoint(url, params, bearer_token)
+        json_response, status_code = connect_to_endpoint(url, params, bearer_token)
         meta = json_response["meta"]
 
         if "data" in json_response:
@@ -166,6 +178,38 @@ def parse_date_range(tweets: list) -> str:
     earliest = stripped[0]
     latest = stripped[-1]
     return f"{earliest} - {latest}"
+
+def get_cutoffs(csv_path) -> dict:
+    """
+    Loads DataFrame from {csv_path}. Searches through column "source".
+    Returns a dictionary of type {func_1: "<highest tweet id>", ...}
+    """
+
+    cutoff_d = {}
+    js_tweet_ids = set()
+
+    # Load df
+    df = csv_to_df(csv_path)
+
+    # Get most recent mention, skip if none found
+    mentions = df[df["source"] == "get_new_mentions()"]["id"].tolist()
+    if mentions != []:
+        cutoff_d["get_new_mentions()"] = max(mentions)
+
+    # Get ids of quoted JediSwap tweets
+    quoted_referenced_tweets = df[df["source"] == "get_quotes_for_tweet()"]["referenced_tweets"]
+
+    for l in quoted_referenced_tweets:
+        referenced_tweets_list = ast.literal_eval(l)
+        for t in referenced_tweets_list:
+            if t["type"] == "quoted":
+                js_tweet_ids.add(t["id"])
+
+    # Add most recent id of quoted tweets, skip if none found.
+    if js_tweet_ids != set():
+        cutoff_d["get_quotes_for_tweet()"] = max(js_tweet_ids)
+
+    return cutoff_d
 
 def tweets_to_json(tweets: list, name: str) -> None:
     """Saves a tweets list to json. Appends its date range to name."""
@@ -371,7 +415,7 @@ def apply_filters(tweets, filters, discarded_json_path) -> list:
 
     return tweets
 
-def get_filtered_tweets(add_params=None) -> dict:
+def get_filtered_tweets(until_ts=None, add_params=None) -> dict:
     """
     Main wrapper function. Calls query functions, applies filtering, returns
     dictionary of filtered tweets. Additional query parameters can be specified
@@ -406,6 +450,15 @@ def get_filtered_tweets(add_params=None) -> dict:
     out_d = {t["id"]: t for t in filtered_tweets}
 
     return out_d
+
+
+# TODO: get_filtered_tweets() <- Remove old logic with add_params.
+# New: Query with each function until TooManyRequests error if not add_params
+# if add_params: in each function: look for its key.
+#    if key found: add ts (or tweet id as since_id parameter)
+#    else:
+#        query until TooManyRequests. Return data
+
 
 
 if __name__ == "__main__":
