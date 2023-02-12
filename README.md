@@ -18,15 +18,7 @@ for the attributes mentioned below:
 * author id, username, followers, following, tweet count, listed count
 
 Each time the script is run, it searches mentions and quotes backwards through time until it
-encounters the most recent tweet it fetched during the last execution and stops there.
-These cut-off points are stored in `last_queried.json`. In case of errors during the
-execution of the script, they can always be recreated from `last_queriedBAK.txt`.
-
-This is an attempt at the most sparse implementation possible with regards to the total
-amount of requests, so no tweet should ever be queried for twice. How often the script has to
-be run to avoid any gaps in the data depends solely on your API tier and the expected activity
-of your Twitter account & followers. For example, if you are allowed to query for the last 800 mentions using the Twitter mentions timeline, you need to run the script often enough so that there will be less than 800 new mentions since the last time the script fetched data from the API. No harm is done by running the script much more often than necessary to ensure not missing
-out on data.
+encounters the most recent tweet from the known data. This is an attempt at the most sparse implementation possible with regards to the total amount of requests, so no tweet should ever be queried for twice. How often the script has to be run to avoid any gaps in the data depends solely on your API tier and the expected activity of your Twitter account & followers. For example, if you are allowed to query for the last 800 mentions using the Twitter mentions timeline, you need to run the script often enough so that there will be less than 800 new mentions since the last time the script fetched data from the API. No harm is done by running the script much more often than necessary to insure against gaps in the data.
 
 
 ### Usage
@@ -34,15 +26,7 @@ out on data.
 To run, a [Twitter developer account](http://developer.twitter.com/) is needed. Once an
 account is registered, paste your API bearer token next to the key `API_BEARER_TOKEN` in
 the `.env` file, as shown in [sample.env](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/sample.env), omitting any quotes. Paste the Twitter user id you want to use the
-script for next to the key `TWITTER_USER_ID`, also without any quotes. In [main.py](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/main.py), set `out_path` to where you want the csv file to be generated. If run for the very first time, you will also need to
-enter two tweet ids as first cut-off points for the queries. Add this information to [last_queried.json](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/last_queried.json):
-
-```
-"id_of_last_tweet": "<tweet id of some recent tweet by yout Twitter account>"
-"id_of_last_mention": "<tweet id of some recent tweet mentioning a tweet by your Twitter account>"
-```
-
-These will define the starting points for your database. Only tweets younger than these will ever be fetched. They will be updated after every execution.
+script for next to the key `TWITTER_USER_ID`, also without any quotes. In [main.py](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/main.py), set `out_path` to where you want the csv file to be generated.
 
 Run [main.py](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/main.py) to start the script:
 
@@ -54,11 +38,9 @@ python main.py
 ### Configuration
 
 * Query parameters can be customized via `get_query_params()` in [query_and_filter.py](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/query_and_filter.py). This will
-affect each API response and alter the returned response fields.
+affect each API response and alter the returned response fields uniformly.
 
-* If called directly, the main function `get_filtered_tweets()` in [query_and_filter.py](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/query_and_filter.py) accepts additional
-query parameters as a dictionary `add_params`, which will be appended to the parameters defined in `get_query_params()`. This way, an API search can be restricted to a specific time interval
-for example.
+* If called directly, the lower-level querying functions in [query_and_filter.py](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/query_and_filter.py) accept additional query parameters as a dictionary `add_params`, which will be appended to the parameters defined in `get_query_params()`. This way, an API search can be refined or restricted to a specific time interval.
 
 * `filter_patterns` in [query_and_filter.py](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/query_and_filter.py) can be expanded to drop tweets programmatically. It
 uses regex to exclude any tweet where a search pattern matches the tweet contents.
