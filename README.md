@@ -2,7 +2,8 @@
 
 ![GitHub](https://img.shields.io/github/license/jediswaplabs/jediswap-force-wielder)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/release/python-390/)
-
+![Commits](https://img.shields.io/github/commit-activity/w/jediswaplabs/jediswap-force-wielder)
+![Libraries.io dependency status for GitHub repo](https://img.shields.io/librariesio/github/jediswaplabs/jediswap-force-wielder)
 
 A script interacting with the Twitter API on a regular basis, fetching, filtering & storing data.
 Any tweet that mentions the [JediSwap Twitter account](https://twitter.com/JediSwap) or
