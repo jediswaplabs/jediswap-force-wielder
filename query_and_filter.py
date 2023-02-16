@@ -24,6 +24,7 @@ import inspect
 import requests
 import re
 from ast import literal_eval
+from os.path import exists
 from pprint import pp, pformat
 from copy import deepcopy
 from dotenv import load_dotenv
@@ -400,7 +401,7 @@ def get_filtered_tweets(cutoff_ids=None) -> dict:
 
     if cutoff_ids:
         print(f"Querying until tweet ids:")
-        (print(x) for x in cutoff_ids)
+        [print(x) for x in cutoff_ids]
     else:
         input("Querying until rate limit reached per function. Continue?")
 

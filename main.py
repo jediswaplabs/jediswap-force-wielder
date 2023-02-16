@@ -40,4 +40,4 @@ out_df = (in_df.pipe(start_pipeline)
 
 # Save/append data locally to csv
 out_df.to_csv(out_path, mode="a", sep=",", index=False, header=not exists(out_path))
-print("Created", out_path.lstrip("./"), "\n")
+print(f"Appended {in_df.shape[0]} tweets to", out_path.lstrip("./"), "\n")
