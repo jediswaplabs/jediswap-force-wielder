@@ -39,5 +39,13 @@ out_df = (in_df.pipe(start_pipeline)
 )
 
 # Save/append data locally to csv
-out_df.to_csv(out_path, mode="a", sep=",", index=False, header=not exists(out_path))
+out_df.to_csv(out_path, mode="a", sep=",", header=not exists(out_path))
 print(f"Appended {in_df.shape[0]} tweets to", out_path.lstrip("./"), "\n")
+
+
+# TODO: lenster integration?
+# TODO: Monthly filtering & updating:
+#       -flag / sort out tweets in excess of 5/month
+#       -sort out doubles / keep only latest version
+#       -or sort out doubles at the beginning of each run? Which one to keep?
+#       -update metrics for all rows using pagination (batch-query tweet ids)

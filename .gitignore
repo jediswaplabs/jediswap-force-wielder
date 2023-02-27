@@ -2,14 +2,14 @@
 *
 
 # Except for these files
-!query_and_filter.py
-!pandas_pipes.py
-!main.py
-!helpers.py
-!requirements.txt
-!README.md
-!LICENSE
-!sample.env
+!./query_and_filter.py
+!./pandas_pipes.py
+!./main.py
+!./helpers.py
+!./requirements.txt
+!./README.md
+!./LICENSE
+!./sample.env
 
 # Ignore any other files in subdirectories
 !*/

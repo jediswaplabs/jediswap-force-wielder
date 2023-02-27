@@ -115,8 +115,9 @@ def merge_user_data(tweets_list, users_list):
 
 def paginated_query(url, params, bearer_token, infinite=False) -> list:
     """
-    Queries pagewise for max results until last page. Returns list of tweets.
-    Will abort if no end_trigger is set, unless "infinite" is set to True.
+    Queries pagewise for max results until last page. Returns list of tweets
+    and most recent query status code. Will abort if no end_trigger is set,
+    unless "infinite" is set to True.
     """
     if not infinite:
         assert ("since_id" or "start_time" in params), ("No end for querying defined. Will query until rate limit reached!")
@@ -130,12 +131,12 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
     # If rate limit reached (TooManyRequests) -> abort here & return empty list
     if status_code == 429:
         print("Rate limit reached (429: Too many requests). Returning empty list.")
-        return []
+        return ([], status_code)
 
     # If end of data reached (last page) -> abort here & return emtpy list
     meta = json_response["meta"]
     if "data" not in json_response:
-        return []
+        return ([], status_code)
 
     # Else continue querying until last (=oldest) page reached
     tweets = json_response["data"]
@@ -161,7 +162,7 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
     # Add user data back to original tweets
     out_list = merge_user_data(tweets_list, users_list)
 
-    return out_list
+    return (out_list, status_code)
 
 def parse_date_range(tweets: list) -> str:
     """Takes a tweets list, returns a str of the earliest & latest tweet date."""
@@ -227,8 +228,12 @@ def get_new_mentions(user_id, bearer_token, add_params=None):
     if add_params:
         params.update(add_params)
 
-    # Query for tweets. Skip rest if no results
-    new_mentions = paginated_query(url, params, bearer_token)
+    # Query for tweets. Skip rest if no results or rate limit reached.
+    new_mentions, status_code = paginated_query(url, params, bearer_token)
+
+    if status_code == 429:
+        print(f"Api rate limit reached. Stopped querying for mentions of user {user_id}.")
+
     if new_mentions == []:
         return []
 
@@ -257,7 +262,11 @@ def get_new_tweets_by_user(user_id, bearer_token, add_params=None):
         params.update(add_params)
 
     # Query for tweets. Skip rest if no results
-    new_tweets = paginated_query(url, params, bearer_token)
+    new_tweets, status_code = paginated_query(url, params, bearer_token)
+
+    if status_code == 429:
+        print(f"Api rate limit reached. Stopped querying for tweets by user {user_id}.")
+
     if new_tweets == []:
         return []
 
@@ -279,15 +288,18 @@ def get_quotes_for_tweet(tweet_id, bearer_token):
     # Define query parameters & query for tweets. Skip rest if no results
     url = "https://api.twitter.com/2/tweets/{}/quote_tweets".format(tweet_id)
     params = get_query_params()
-    quotes = paginated_query(url, params, bearer_token, infinite=True)
+    quotes, status_code = paginated_query(url, params, bearer_token, infinite=True)
+
+    if status_code == 429:
+        print(f"Api rate limit reached while querying quote tweets of tweet {tweet_id}.")
     if quotes == []:
-        return []
+        return ([], status_code)
 
     # Add source attribute to tweets to trace potential bugs back to origin
     func_name = str(inspect.currentframe().f_code.co_name + "()")
     [x.update({"source": func_name}) for x in quotes]
 
-    return quotes
+    return (quotes, status_code)
 
 def get_new_quote_tweets(user_id, bearer_token, add_params=None):
     """
@@ -309,12 +321,19 @@ def get_new_quote_tweets(user_id, bearer_token, add_params=None):
 
     # Get quotes of each new tweet
     for t_id in tweet_ids:
-        quotes = get_quotes_for_tweet(t_id, bearer_token)
+        quotes, status_code = get_quotes_for_tweet(t_id, bearer_token)
+
+        # If api limit reached -> Abort & return what was fetched so far
+        if status_code == 429:
+            print(f"Stopped fetching quote tweets at tweet {t_id}.")
+            break
+
         new_quotes.extend(quotes)
 
-    # Save queried data to json as backup
-    func_name = str(inspect.currentframe().f_code.co_name + "()")
-    tweets_to_json(new_quotes, func_name)
+    if new_quotes != []:
+        # Save queried data to json as backup
+        func_name = str(inspect.currentframe().f_code.co_name + "()")
+        tweets_to_json(new_quotes, func_name)
 
     return new_quotes
 
