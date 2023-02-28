@@ -420,7 +420,8 @@ def get_filtered_tweets(cutoff_ids=None) -> dict:
 
     if cutoff_ids:
         print(f"Querying until tweet ids:")
-        [print(x) for x in cutoff_ids]
+        [print(f"{k}\t{v}") for k, v in cutoff_ids.items()]
+
     else:
         input("Querying until rate limit reached per function. Continue?")
 
