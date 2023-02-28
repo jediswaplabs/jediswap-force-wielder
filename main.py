@@ -53,7 +53,7 @@ if exists(out_path):
         .sort_values("id")
 
 # Save updated database & preserve type information in 2nd row
-df_to_csv(out_df, out_path, mode="w", sep=",", header=not exists(out_path))
+df_to_csv(out_df, out_path, mode="w", sep=",")
 print(f"Appended {in_df.shape[0]} tweets to", out_path.lstrip("./"), "\n")
 
 
