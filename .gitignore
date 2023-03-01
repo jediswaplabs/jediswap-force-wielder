@@ -5,7 +5,7 @@
 !./query_and_filter.py
 !./pandas_pipes.py
 !./main.py
-!./generate_monthly_data.py
+!generate_monthly_data.py
 !./helpers.py
 !./requirements.txt
 !./README.md
