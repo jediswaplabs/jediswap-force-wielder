@@ -73,7 +73,7 @@ def get_query_params() -> dict:
     }
     return params
 
-def connect_to_endpoint(url, params, bearer_token):
+def connect_to_endpoint(url, params, bearer_token) -> tuple:
     """Wrapper for Twitter API queries."""
     response = requests.request("GET", url, auth=bearer_oauth, params=params)
     print(response.status_code)
@@ -88,7 +88,7 @@ def connect_to_endpoint(url, params, bearer_token):
         )
     return (response.json(), response.status_code)
 
-def merge_user_data(tweets_list, users_list):
+def merge_user_data(tweets_list, users_list) -> list:
     """
     Helper function needed while querying the Twitter API.
     Takes the ["data"] and ["includes"]["users"] lists from the json_response,
@@ -235,7 +235,7 @@ def tweets_to_json(tweets: list, name: str) -> None:
     out_name = f"{date_range} unfiltered {name}.json"
     write_list_to_json(tweets, out_name)
 
-def get_tweets(id_list, bearer_token, add_params=None) -> dict:
+def get_tweets(id_list, bearer_token, add_params=None) -> list:
     """
     Assumes list of tweet ids.
     Queries Twitter API in chunks of 100 tweets per query (maximum).
@@ -277,7 +277,7 @@ def get_tweets(id_list, bearer_token, add_params=None) -> dict:
 
     return out_tweets
 
-def get_new_mentions(user_id, bearer_token, add_params=None):
+def get_new_mentions(user_id, bearer_token, add_params=None) -> list:
     """
     Queries mentions timeline of Twitter user until tweet id from
     {last_queried_path} encountered. Returns list of all tweets newer
@@ -310,7 +310,7 @@ def get_new_mentions(user_id, bearer_token, add_params=None):
 
     return new_mentions
 
-def get_new_tweets_by_user(user_id, bearer_token, add_params=None):
+def get_new_tweets_by_user(user_id, bearer_token, add_params=None) -> list:
     """
     Queries tweets timeline of Twitter user until tweet id from
     {last_queried_path} encountered. Returns list of all tweets newer
@@ -346,7 +346,7 @@ def get_new_tweets_by_user(user_id, bearer_token, add_params=None):
 
     return new_tweets
 
-def get_quotes_for_tweet(tweet_id, bearer_token):
+def get_quotes_for_tweet(tweet_id, bearer_token) -> tuple:
     """Queries API for all quote tweets of {tweet_id}."""
 
     # Define query parameters & query for tweets. Skip rest if no results
@@ -365,7 +365,7 @@ def get_quotes_for_tweet(tweet_id, bearer_token):
 
     return (quotes, status_code)
 
-def get_new_quote_tweets(user_id, bearer_token, add_params=None):
+def get_new_quote_tweets(user_id, bearer_token, add_params=None) -> list:
     """
     Queries API for all JediSwap tweets since the tweet id stored in the
     json file in {last_queried_path}. Discards retweets, iterates through
