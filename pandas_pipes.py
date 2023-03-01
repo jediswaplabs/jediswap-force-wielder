@@ -6,9 +6,7 @@ import pandas as pd
 import datetime as dt
 
 to_rename = {}    # {"old_name": "new_name", ...}
-
 to_drop = ["edit_history_tweet_ids", "public_metrics"]
-
 final_order = [
     "month",
     "parsed_time",
@@ -46,7 +44,11 @@ def rename_columns(df, old_new_dict) -> pd.DataFrame:
     df.rename(columns=old_new_dict, inplace=True)
     return df
 
-def reorder(df, columns) -> pd.DataFrame:
+def sort_rows(df, column) -> pd.DataFrame:
+    df.sort_values(column, inplace=True)
+    return df
+
+def reorder_columns(df, columns) -> pd.DataFrame:
     return df[columns]
 
 def drop_columns(df, col_list) -> pd.DataFrame:
@@ -60,6 +62,16 @@ def add_parsed_time(df) -> pd.DataFrame:
 
 def add_month(df) -> pd.DataFrame:
     df['month'] = df['parsed_time'].dt.month_name()
+    return df
+
+def keep_five_per_author(df) -> pd.DataFrame:
+    """Keep only the 5 highest impression tweets per Twitter user."""
+
+    df.sort_values("impression_count", ascending=False, inplace=True)
+    df["Handle Counter"] = df.groupby('username').cumcount()+1
+    df.drop(df[df["Handle Counter"] > 5].index, inplace=True)
+    del df['Handle Counter']
+
     return df
 
 def apply_and_concat(dataframe, field, func, column_names) -> pd.DataFrame:

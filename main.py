@@ -40,7 +40,7 @@ out_df = (in_df.pipe(start_pipeline)
     .pipe(extract_public_metrics)
     .pipe(add_month)
     .pipe(drop_columns, to_drop)
-    .pipe(reorder, final_order)
+    .pipe(reorder_columns, final_order)
 )
 
 # Merge with database / keep only latest fetched version per tweet
@@ -55,10 +55,3 @@ if exists(out_path):
 # Save updated database & preserve type information in 2nd row
 df_to_csv(out_df, out_path, mode="w", sep=",")
 print(f"Appended {in_df.shape[0]} tweets to", out_path.lstrip("./"), "\n")
-
-
-# DONE: -per tweet: only ever keep most recently queried version
-# TODO: Monthly filtering & updating:
-#       -flag / sort out tweets in excess of 5/month
-#       -update metrics for all rows using pagination (batch-query tweet ids)
-# TODO: lenster integration?
