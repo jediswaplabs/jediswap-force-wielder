@@ -74,7 +74,7 @@ def get_query_params() -> dict:
     return params
 
 def connect_to_endpoint(url, params, bearer_token) -> tuple:
-    """Wrapper for Twitter API queries."""
+    """Wrapper for Twitter API queries. Returns response & status code."""
     response = requests.request("GET", url, auth=bearer_oauth, params=params)
     print(response.status_code)
 
@@ -429,22 +429,26 @@ def remove_if_regex_matches(tweets, regex_p, discarded_json_path, discarded_key,
         else:
             out_tweets.append(t)
 
-    # Save discarded tweets to json (for loading)
+    # Save discarded tweets to json (for debugging)
     out_d = read_from_json(discarded_json_path)
     out_d[discarded_key] = discarded
     write_to_json(out_d, discarded_json_path)
 
-    # Append discarded tweets to csv (for sharing)
+    # Append discarded tweets to csv (for keeping track of filters)
+    csv_path = discarded_json_path.replace(".json", f"_{discarded_key}.csv")
+
     if discarded != []:
-        csv_path = discarded_json_path.replace(".json", f"_{discarded_key}.csv")
-        include = ['id', 'text', 'created_at', 'username', 'author_id']
-        pd.DataFrame(discarded)[include].to_csv(
-            csv_path,
-            mode="a",
-            sep=",",
-            index=False,
-            header=not exists(discarded_json_path)
-        )
+        include = ["id", "text", "created_at", "username", "author_id"]
+        new_data = pd.DataFrame(discarded)[include]
+
+        if exists(csv_path):
+            known_data = csv_to_df(csv_path)
+            new_data = pd.concat([known_data, new_data]) \
+                .drop_duplicates("id") \
+                .sort_values("id")
+        
+        df_to_csv(new_data, csv_path)
+        #new_data.to_csv(csv_path, index=False, header=not exists(csv_path))
 
     return out_tweets
 
@@ -471,33 +475,40 @@ def apply_filters(tweets, filters, discarded_json_path) -> list:
 
     return tweets
 
-def get_filtered_tweets(cutoff_ids=None) -> dict:
+def get_filtered_tweets(cutoff_ids=None, add_params=None) -> dict:
     """
-    Main wrapper function. Calls query functions, applies filtering, returns
-    dictionary of filtered tweets. Queries backwards in time. End triggers
-    can be defined in {cutoff_ids}. Intended to be a dictionary with the
-    function names as keys and the latest known tweet id from the data as
-    value. Querying will stop once this tweet id is encountered. Example:
-    {"get_new_mentions()": "<tweet id>", "get_new_quotes()":<other tweet id>"}.
+    Main wrapper function. Calls query functions, applies filtering, returns dictionary
+    of filtered tweets. Queries backwards in time. End triggers can be defined in
+    {add_params} (all queries) or {cutoff_ids} (per function). Examples:
+    cutoff_ids = {"get_new_mentions()": "<tweet id>", "get_new_quotes()":<other tweet id>"}
+    add_params = {"start_time" = "2023-03-01T00:00:00.000Z"}
     """
     obvious_print("Fetching new tweets...")
 
     if cutoff_ids:
         print(f"Querying until tweet ids:")
         [print(f"{k}\t{v}") for k, v in cutoff_ids.items()]
-
+    elif add_params:
+        print("Querying using these constraints:")
+        [print(f"{k}\t{v}") for k, v in add_params.items()]
     else:
         input("Querying until rate limit reached per function. Continue?")
 
     new_mentions_params = {}
     new_quotes_params = {}
 
-    # Unpack cut_off ids to function-specific {add_params} dictionaries
-    if cutoff_ids:
-        if cutoff_ids["get_new_mentions()"]:
+    # Add query parameters from {add_params} (preferred) or {cutoff_ids}.
+    if add_params:
+        new_mentions_params.update(add_params)
+        new_quotes_params.update(add_params)
+
+    elif cutoff_ids:
+        if "get_new_mentions()" in cutoff_ids:
             new_mentions_params["since_id"] = cutoff_ids["get_new_mentions()"]
-        if cutoff_ids["get_quotes_for_tweet()"]:
+        if "get_quotes_for_tweet()" in cutoff_ids:
             new_quotes_params["since_id"] = cutoff_ids["get_quotes_for_tweet()"]
+    else:
+        pass
 
     # Fetch all mentions new since last execution of script
     new_mentions = get_new_mentions(

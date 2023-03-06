@@ -19,7 +19,7 @@ from query_and_filter import (
     discarded_path
 )
 
-month = "February"
+month = "March"
 out_path = f"./{month} Tweet Data.csv"
 assert exists(db_path), f"No database found under {db_path}. Please run main.py first."
 

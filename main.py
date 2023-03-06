@@ -20,38 +20,45 @@ from pandas_pipes import *
 
 out_path = "./Force_Wielders_Data_beta.csv"
 first_run = not exists(out_path)
+add_params = None
 
-# Get most recent known tweets from dataset if it exists
-query_until_ids = None if first_run else get_cutoffs(out_path)
+def run(add_params=add_params):
 
-# Fetch new tweets since last execution.
-new_tweets = get_filtered_tweets(cutoff_ids=query_until_ids)
-if new_tweets == {}:
-    print("No new mentions or quote tweets since last execution.")
-    exit(0)
+    # Get most recent known tweets from dataset if it exists
+    query_until_ids = None if (first_run or add_params) else get_cutoffs(out_path)
 
-# Create DataFrame & perform all needed transformations of the data
-in_df = pd.DataFrame.from_dict(new_tweets, orient="index")
+    # Fetch new tweets since last execution.
+    new_tweets = get_filtered_tweets(cutoff_ids=query_until_ids, add_params=add_params)
+    if new_tweets == {}:
+        print("No new mentions or quote tweets since last execution.")
+        exit(0)
 
-out_df = (in_df.pipe(start_pipeline)
-    .pipe(replace_nans)
-    .pipe(add_parsed_time)
-    .pipe(rename_columns, to_rename)
-    .pipe(extract_public_metrics)
-    .pipe(add_month)
-    .pipe(drop_columns, to_drop)
-    .pipe(reorder_columns, final_order)
-)
+    # Create DataFrame & perform all needed transformations of the data
+    in_df = pd.DataFrame.from_dict(new_tweets, orient="index")
 
-# Merge with database / keep only latest fetched version per tweet
-if exists(out_path):
+    out_df = (in_df.pipe(start_pipeline)
+        .pipe(replace_nans)
+        .pipe(add_parsed_time)
+        .pipe(rename_columns, to_rename)
+        .pipe(extract_public_metrics)
+        .pipe(add_month)
+        .pipe(drop_columns, to_drop)
+        .pipe(reorder_columns, final_order)
+    )
 
-    known_data = csv_to_df(out_path)
-    out_df = pd.concat([known_data, out_df]) \
-        .sort_values("impression_count") \
-        .drop_duplicates("id", keep="last") \
-        .sort_values("id")
+    # Merge with database / keep only latest fetched version per tweet
+    if exists(out_path):
 
-# Save updated database & preserve type information in 2nd row
-df_to_csv(out_df, out_path, mode="w", sep=",")
-print(f"Appended {in_df.shape[0]} tweets to", out_path.lstrip("./"), "\n")
+        known_data = csv_to_df(out_path)
+        out_df = pd.concat([known_data, out_df]) \
+            .sort_values("impression_count") \
+            .drop_duplicates("id", keep="last") \
+            .sort_values("id")
+
+    # Save updated database & preserve type information in 2nd row
+    df_to_csv(out_df, out_path, mode="w", sep=",")
+    n_rows = in_df.shape[0] if not exists(out_path) else out_df.shape[0] - known_data.shape[0]
+    print(f"Appended {n_rows} tweets to", out_path.lstrip("./"), "\n")
+
+if __name__ == "__main__":
+    run(add_params)
