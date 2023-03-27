@@ -35,6 +35,7 @@ tweets = get_tweets(tweet_ids, bearer_token, add_params=None)
 tweets = apply_filters(tweets, filter_patterns, discarded_path)
 tweets_d = {t["id"]: t for t in tweets}
 in_df = pd.DataFrame.from_dict(tweets_d, orient="index")
+cols_to_be_dropped = list((set(to_drop) | set(["created_at", "source"])) & set(out_df.columns))
 
 out_df = (in_df.pipe(start_pipeline)
     .pipe(replace_nans)
@@ -45,8 +46,9 @@ out_df = (in_df.pipe(start_pipeline)
     .pipe(keep_five_per_author)
     .pipe(sort_rows, "id")
     .pipe(reorder_columns, final_order)
-    .pipe(drop_columns, to_drop.extend(["created_at", "source"]))
+    .pipe(drop_columns, cols_to_be_dropped)
 )
+#out_df.drop(columns=to_drop.extend(["created_at", "source"]), inplace=True)
 
 # Save final dataset & preserve type information in 2nd row
 df_to_csv(out_df, out_path, mode="w", sep=",")

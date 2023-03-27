@@ -53,7 +53,7 @@ def reorder_columns(df, columns) -> pd.DataFrame:
 
 def drop_columns(df, col_list) -> pd.DataFrame:
     """Drop all columns specified in {col_list}."""
-    df.drop(col_list, axis=1, inplace=True)
+    df.drop(columns=col_list, axis=1, inplace=True)
     return df
 
 def add_parsed_time(df) -> pd.DataFrame:
