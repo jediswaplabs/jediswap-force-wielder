@@ -60,6 +60,10 @@ def add_parsed_time(df) -> pd.DataFrame:
     df['parsed_time'] = pd.to_datetime(df['created_at'], infer_datetime_format=True)
     return df
 
+def add_prefix(df, target_col, prefix_str) -> pd.DataFrame:
+    df[target_col] = prefix_str + df[target_col].astype(str)
+    return df
+
 def add_month(df) -> pd.DataFrame:
     df['month'] = df['parsed_time'].dt.month_name()
     return df
@@ -99,3 +103,4 @@ def extract_public_metrics(df) -> pd.DataFrame:
     new_cols = ["impression_count", "reply_count", "retweet_count", "like_count", "quote_count"]
     df = apply_and_concat(df, 'public_metrics', extract_from_dict, new_cols)
     return df
+

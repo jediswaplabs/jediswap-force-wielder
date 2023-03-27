@@ -44,11 +44,11 @@ out_df = (in_df.pipe(start_pipeline)
     .pipe(extract_public_metrics)
     .pipe(add_month)
     .pipe(keep_five_per_author)
+    .pipe(add_prefix, "username", "Twitter, ")
     .pipe(sort_rows, "id")
     .pipe(reorder_columns, final_order)
     .pipe(drop_columns, cols_to_be_dropped)
 )
-#out_df.drop(columns=to_drop.extend(["created_at", "source"]), inplace=True)
 
 # Save final dataset & preserve type information in 2nd row
 df_to_csv(out_df, out_path, mode="w", sep=",")
