@@ -31,25 +31,34 @@ assert len(tweet_ids) == len(set(tweet_ids)), "Some tweets appear more than once
 # Query metrics for all tweets as of today, drop deleted & suspended tweets
 tweets = get_tweets(tweet_ids, bearer_token, add_params=None)
 
-# Apply filters and reshape data
+# Apply filters
 tweets = apply_filters(tweets, filter_patterns, discarded_path)
 tweets_d = {t["id"]: t for t in tweets}
 in_df = pd.DataFrame.from_dict(tweets_d, orient="index")
-cols_to_be_dropped = list((set(to_drop) | set(["created_at", "source"])) & set(in_df.columns))
 
+# Define output format & data to be ignored
+to_drop.extend(["created_at", "source"])
+to_drop = list(set(to_drop))
+final_order = [x for x in final_order if x in list(in_df.columns)]
+final_order.insert(7, ">5 mentions")
+final_order.insert(7, "points")
+
+# Reshape data
 out_df = (in_df.pipe(start_pipeline)
     .pipe(replace_nans)
     .pipe(add_parsed_time)
-    .pipe(rename_columns, to_rename)
     .pipe(extract_public_metrics)
     .pipe(add_month)
+    .pipe(add_more_than_5_mentions_flag)
+    .pipe(assign_points)
     .pipe(keep_five_per_author)
     .pipe(add_prefix, "username", "Twitter, ")
     .pipe(sort_rows, "id")
     .pipe(reorder_columns, final_order)
-    .pipe(drop_columns, cols_to_be_dropped)
+    .pipe(rename_columns, to_rename)
+    .pipe(drop_columns, to_drop)
 )
 
 # Save final dataset & preserve type information in 2nd row
 df_to_csv(out_df, out_path, mode="w", sep=",")
-print(f"Stored monthly data ({in_df.shape[0]} tweets) as", out_path.lstrip("./"), "\n")
+print(f"Stored monthly data ({out_df.shape[0]} tweets) as", out_path.lstrip("./"), "\n")
