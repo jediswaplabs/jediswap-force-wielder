@@ -40,11 +40,11 @@ discarded_path = "./discarded_tweets.json"
 
 # Regex filter patterns. Any tweet where a pattern matches the tweet text gets dropped.
 filter_patterns = [
-    {
-    "name": "more_than_5_mentions",
-    "pattern" : r"@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+",
-    "flag": "dotall"
-    },
+    #{
+    #"name": "more_than_5_mentions",
+    #"pattern" : r"@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+",
+    #"flag": "dotall"
+    #},
     {
     "name": "red_flag",
     "pattern" : r"airdrop",
