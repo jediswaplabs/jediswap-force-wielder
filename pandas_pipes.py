@@ -50,6 +50,8 @@ def sort_rows(df, column) -> pd.DataFrame:
     return df
 
 def reorder_columns(df, columns) -> pd.DataFrame:
+    """Returns df with order as specified in {columns}. Anything not present in data is ignored."""
+    columns = [x for x in columns if x in list(df.columns)]
     return df[columns]
 
 def drop_columns(df, col_list) -> pd.DataFrame:
@@ -81,11 +83,13 @@ def keep_five_per_author(df) -> pd.DataFrame:
     return df
 
 def assign_points(df) -> pd.DataFrame:
+    
     def points_formula(n_views):
         points = int((n_views**(1/1.6))*0.45)
         return points
     
-    df["Points"] = df["impression_count"].apply(points_formula)
+    df["points"] = df["impression_count"].apply(points_formula)
+    
     # 0 points if followers <11 or impressions <50
     df.loc[df["followers_count"] < 11, 'points'] = 0
     df.loc[df["impression_count"] < 50, 'points'] = 0
@@ -93,7 +97,15 @@ def assign_points(df) -> pd.DataFrame:
     return df
 
 def add_followers_per_retweets(df) -> pd.DataFrame:
-    pass
+    
+    def f(row):  
+        if int(row["retweet_count"]) + int(row["quote_count"]) == 0:
+            return "never retweeted or quoted"
+        else:
+            return int(row["followers_count"] / (row["retweet_count"] + row["quote_count"]))
+    
+    df['followers_per_retweets'] = df.apply(f, axis=1)
+    
     return df
 
 def add_more_than_5_mentions_flag(df) -> pd.DataFrame:
@@ -104,9 +116,8 @@ def add_more_than_5_mentions_flag(df) -> pd.DataFrame:
             return True
         else:
             return False
-
+        
     df[">5 mentions"] = df["text"].apply(set_flag)
-
     
     return df
 
