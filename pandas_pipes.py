@@ -2,10 +2,11 @@
 All pandas-related functions are defined here.
 """
 
+import re
 import pandas as pd
 import datetime as dt
 
-to_rename = {}    # {"old_name": "new_name", ...}
+to_rename = {"username": "user"}
 to_drop = ["edit_history_tweet_ids", "public_metrics"]
 final_order = [
     "month",
@@ -52,8 +53,9 @@ def reorder_columns(df, columns) -> pd.DataFrame:
     return df[columns]
 
 def drop_columns(df, col_list) -> pd.DataFrame:
-    """Drop all columns specified in {col_list}."""
-    df.drop(columns=col_list, axis=1, inplace=True)
+    """Drop all columns specified in {col_list} if they exist. Ignore if not."""
+    to_drop = [x for x in col_list if x in list(df.columns)]
+    df.drop(columns=to_drop, axis=1, inplace=True)
     return df
 
 def add_parsed_time(df) -> pd.DataFrame:
@@ -76,6 +78,36 @@ def keep_five_per_author(df) -> pd.DataFrame:
     df.drop(df[df["Handle Counter"] > 5].index, inplace=True)
     del df['Handle Counter']
 
+    return df
+
+def assign_points(df) -> pd.DataFrame:
+    def points_formula(n_views):
+        points = int((n_views**(1/1.6))*0.45)
+        return points
+    
+    df["Points"] = df["impression_count"].apply(points_formula)
+    # 0 points if followers <11 or impressions <50
+    df.loc[df["followers_count"] < 11, 'points'] = 0
+    df.loc[df["impression_count"] < 50, 'points'] = 0
+    
+    return df
+
+def add_followers_per_retweets(df) -> pd.DataFrame:
+    pass
+    return df
+
+def add_more_than_5_mentions_flag(df) -> pd.DataFrame:
+    
+    def set_flag(tweet_text):
+        regex_p = r"@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+"
+        if re.search(regex_p, tweet_text, flags=re.S):
+            return True
+        else:
+            return False
+
+    df[">5 mentions"] = df["text"].apply(set_flag)
+
+    
     return df
 
 def apply_and_concat(dataframe, field, func, column_names) -> pd.DataFrame:

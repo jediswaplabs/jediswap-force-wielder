@@ -35,7 +35,7 @@ tweets = get_tweets(tweet_ids, bearer_token, add_params=None)
 tweets = apply_filters(tweets, filter_patterns, discarded_path)
 tweets_d = {t["id"]: t for t in tweets}
 in_df = pd.DataFrame.from_dict(tweets_d, orient="index")
-cols_to_be_dropped = list((set(to_drop) | set(["created_at", "source"])) & set(out_df.columns))
+cols_to_be_dropped = list((set(to_drop) | set(["created_at", "source"])) & set(in_df.columns))
 
 out_df = (in_df.pipe(start_pipeline)
     .pipe(replace_nans)

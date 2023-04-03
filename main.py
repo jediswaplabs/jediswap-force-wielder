@@ -39,7 +39,6 @@ def run(add_params=add_params):
     out_df = (in_df.pipe(start_pipeline)
         .pipe(replace_nans)
         .pipe(add_parsed_time)
-        .pipe(rename_columns, to_rename)
         .pipe(extract_public_metrics)
         .pipe(add_month)
         .pipe(drop_columns, to_drop)
