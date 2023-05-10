@@ -235,6 +235,37 @@ def tweets_to_json(tweets: list, name: str) -> None:
     out_name = f"{date_range} unfiltered {name}.json"
     write_list_to_json(tweets, out_name)
 
+def query_tweets(url, params, bearer_token) -> list:
+    """
+    Queries for multiple (max 100) tweets. Merges user & tweet data.
+    Returns list of tweets and most recent query status code.
+    """
+    tweets_list = []
+    users_list = []
+
+    # Query. If no results & no error -> Return emtpy list
+    json_response, status_code = connect_to_endpoint(url, params, bearer_token)
+
+    # If rate limit reached (TooManyRequests) -> abort here & return empty list
+    if status_code == 429:
+        print("Rate limit reached (429: Too many requests). Returning empty list.")
+        return ([], status_code)
+
+    # If nothing found -> abort here & return emtpy list
+    if "data" not in json_response:
+        return ([], status_code)
+
+    # Merge tweet data with corresponding user data
+    tweets = json_response["data"]
+    users = json_response["includes"]["users"]
+    tweets_list.extend(tweets)
+    users_list.extend(users)
+
+    # Add user data back to original tweets
+    out_list = merge_user_data(tweets_list, users_list)
+
+    return (out_list, status_code)
+
 def get_tweets(id_list, bearer_token, add_params=None) -> list:
     """
     Assumes list of tweet ids.
@@ -253,13 +284,13 @@ def get_tweets(id_list, bearer_token, add_params=None) -> list:
     if add_params:
         params.update(add_params)
     del params["max_results"]
-
+    
     # Query 100 tweets at a time
     for ids in id_chunk:
-
+        
         id_str = "ids=" + ",".join(ids)
         url = "https://api.twitter.com/2/tweets?{}".format(id_str)
-        tweets, status_code = simple_query(url, params, bearer_token)
+        tweets, status_code = query_tweets(url, params, bearer_token)
         out_tweets.extend(tweets)
 
         if status_code == 429:
