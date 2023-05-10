@@ -108,7 +108,8 @@ def merge_user_data(tweets_list, users_list) -> list:
         t["following_count"] = u["public_metrics"]["following_count"]
         t["tweet_count"] = u["public_metrics"]["tweet_count"]
         t["listed_count"] = u["public_metrics"]["listed_count"]
-
+        t["entities"] = u["entities"] if "entities" in u else {}
+        
         out_list.append(t)
 
     return out_list
