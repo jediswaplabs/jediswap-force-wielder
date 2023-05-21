@@ -108,6 +108,10 @@ def add_followers_per_retweets(df) -> pd.DataFrame:
     
     return df
 
+def add_discounted_mentions(df) -> pd.DataFrame:
+    # TODO
+    return df
+
 def add_more_than_5_mentions_flag(df) -> pd.DataFrame:
     
     def set_flag(tweet_text):

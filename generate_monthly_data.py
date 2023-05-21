@@ -3,8 +3,8 @@
 """
 Script intended to be run manually once a month to generate
 the final dataset for whichever month is specified in {month}.
-All metrics are updated and monthly filters are applied.
-Tweets to be dropped: -deleted tweets, -tweets from suspended accounts.
+When run, all Twitter metrics are updated and the monthly filters are applied.
+Deleted tweets & tweets from suspended accounts are being dropped at this stage.
 """
 
 from os.path import exists
@@ -19,7 +19,7 @@ from query_and_filter import (
     discarded_path
 )
 
-month = "March"
+month = "May"
 out_path = f"./{month} Tweet Data.csv"
 assert exists(db_path), f"No database found under {db_path}. Please run main.py first."
 

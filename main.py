@@ -33,6 +33,9 @@ def run(add_params=add_params):
         print("No new mentions or quote tweets since last execution.")
         exit(0)
 
+    # Drop reply tweets & discount mentions inherited from elsewhere in the conversation
+    # TODO: discount_mentions(new_tweets)
+
     # Create DataFrame & perform all needed transformations of the data
     in_df = pd.DataFrame.from_dict(new_tweets, orient="index")
 
@@ -41,6 +44,7 @@ def run(add_params=add_params):
         .pipe(add_parsed_time)
         .pipe(extract_public_metrics)
         .pipe(add_month)
+        #.pipe(add_discounted_mentions)
         .pipe(drop_columns, to_drop)
         .pipe(reorder_columns, final_order)
     )
