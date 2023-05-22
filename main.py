@@ -14,7 +14,7 @@ Written by Al Matty - github.com/al-matty
 
 from sys import exit
 from os.path import exists
-from query_and_filter import get_filtered_tweets, get_cutoffs
+from query_and_filter import discount_mentions, get_filtered_tweets, get_cutoffs
 from helpers import csv_to_df, df_to_csv
 from pandas_pipes import *
 
@@ -34,7 +34,7 @@ def run(add_params=add_params):
         exit(0)
 
     # Drop reply tweets & discount mentions inherited from elsewhere in the conversation
-    # TODO: discount_mentions(new_tweets)
+    new_tweets = discount_mentions(new_tweets)
 
     # Create DataFrame & perform all needed transformations of the data
     in_df = pd.DataFrame.from_dict(new_tweets, orient="index")
@@ -44,7 +44,6 @@ def run(add_params=add_params):
         .pipe(add_parsed_time)
         .pipe(extract_public_metrics)
         .pipe(add_month)
-        #.pipe(add_discounted_mentions)
         .pipe(drop_columns, to_drop)
         .pipe(reorder_columns, final_order)
     )
@@ -57,10 +56,14 @@ def run(add_params=add_params):
             .sort_values("impression_count") \
             .drop_duplicates("id", keep="last") \
             .sort_values("id")
-
+        known_len = known_data.shape[0]
+    
+    else:
+        known_len = 0
+        
     # Save updated database & preserve type information in 2nd row
     df_to_csv(out_df, out_path, mode="w", sep=",")
-    n_rows = in_df.shape[0] if not exists(out_path) else out_df.shape[0] - known_data.shape[0]
+    n_rows = in_df.shape[0] - known_len
     print(f"Appended {n_rows} tweets to", out_path.lstrip("./"), "\n")
 
 if __name__ == "__main__":

@@ -513,7 +513,7 @@ def discount_mentions(tweets_dict) -> dict:
     For reply tweets, this method subtracts mentions that have been present in the tweet
     that's been replied to. For replies to JediSwap, the mention is discounted in any case.
     """
-    
+
     discarded = []
     reply_ids = set()
 
@@ -588,15 +588,15 @@ def discount_mentions(tweets_dict) -> dict:
     # Discount mentions inherited from other tweets & drop conditionally from data
     for _id, t in tweets_dict.items():
         
+        if is_quote(t):
+            mentions = get_mentions(t)
+            out_dict[_id]["discounted_mentions"] = mentions
+            continue
+
         if is_reply_to_jediswap(t):
             t["comment"] = "Tweet is a reply to a JediSwap tweet."
             discarded.append(t)
             del out_dict[_id]
-            continue
-
-        if is_quote(t):
-            mentions = get_mentions(t)
-            out_dict[_id]["discounted_mentions"] = mentions
             continue
 
         if is_reply(t):
@@ -631,7 +631,7 @@ def discount_mentions(tweets_dict) -> dict:
     csv_path = "not_mentioning_jediswap.csv"
 
     if discarded != []:
-        include = ["id", "text", "comment", "created_at", "username", "author_id"]
+        include = ["id", "text", "comment", "created_at", "username", "author_id", "source"]
         new_data = pd.DataFrame(discarded)[include]
 
         if exists(csv_path):
