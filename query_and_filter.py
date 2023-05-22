@@ -66,7 +66,7 @@ def get_query_params() -> dict:
     """Tweet information returned by api is defined here."""
     params = {
         "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
-            "referenced_tweets,conversation_id",
+            "referenced_tweets,conversation_id,entities",
         "user.fields": "id,username,entities,public_metrics",
         "expansions": "author_id,in_reply_to_user_id",
         "max_results": "100"
@@ -108,7 +108,7 @@ def merge_user_data(tweets_list, users_list) -> list:
         t["following_count"] = u["public_metrics"]["following_count"]
         t["tweet_count"] = u["public_metrics"]["tweet_count"]
         t["listed_count"] = u["public_metrics"]["listed_count"]
-
+        
         out_list.append(t)
 
     return out_list
@@ -235,6 +235,37 @@ def tweets_to_json(tweets: list, name: str) -> None:
     out_name = f"{date_range} unfiltered {name}.json"
     write_list_to_json(tweets, out_name)
 
+def query_tweets(url, params, bearer_token) -> list:
+    """
+    Queries for multiple (max 100) tweets. Merges user & tweet data.
+    Returns list of tweets and most recent query status code.
+    """
+    tweets_list = []
+    users_list = []
+
+    # Query. If no results & no error -> Return emtpy list
+    json_response, status_code = connect_to_endpoint(url, params, bearer_token)
+
+    # If rate limit reached (TooManyRequests) -> abort here & return empty list
+    if status_code == 429:
+        print("Rate limit reached (429: Too many requests). Returning empty list.")
+        return ([], status_code)
+
+    # If nothing found -> abort here & return emtpy list
+    if "data" not in json_response:
+        return ([], status_code)
+
+    # Merge tweet data with corresponding user data
+    tweets = json_response["data"]
+    users = json_response["includes"]["users"]
+    tweets_list.extend(tweets)
+    users_list.extend(users)
+
+    # Add user data back to original tweets
+    out_list = merge_user_data(tweets_list, users_list)
+
+    return (out_list, status_code)
+
 def get_tweets(id_list, bearer_token, add_params=None) -> list:
     """
     Assumes list of tweet ids.
@@ -253,13 +284,13 @@ def get_tweets(id_list, bearer_token, add_params=None) -> list:
     if add_params:
         params.update(add_params)
     del params["max_results"]
-
+    
     # Query 100 tweets at a time
     for ids in id_chunk:
-
+        
         id_str = "ids=" + ",".join(ids)
         url = "https://api.twitter.com/2/tweets?{}".format(id_str)
-        tweets, status_code = simple_query(url, params, bearer_token)
+        tweets, status_code = query_tweets(url, params, bearer_token)
         out_tweets.extend(tweets)
 
         if status_code == 429:
@@ -454,15 +485,15 @@ def remove_if_regex_matches(tweets, regex_p, discarded_json_path, discarded_key,
 
 def apply_filters(tweets, filters, discarded_json_path) -> list:
     """
-    Takes a list of tweets. Returns the same list with all tweets removed where
-    one of the regex {filter_patterns} matches in tweet["text"].
-    Stores discarded tweets in json file, ordered by pattern name.
+    Takes a list of tweets. Returns the same list with all tweets removed where a regex pattern from
+    {filter_patterns} matches in tweet["text"]. Discarded tweets are stored in json file, ordered by
+    filter name.
     """
 
     # Wipe old json file
     write_to_json(dict(), discarded_json_path)
 
-    # Apply filters iteratively
+    # Apply regex filters iteratively
     for f in filters:
 
         tweets = remove_if_regex_matches(
@@ -474,6 +505,145 @@ def apply_filters(tweets, filters, discarded_json_path) -> list:
         )
 
     return tweets
+
+def discount_mentions(tweets_dict) -> dict:
+    """
+    Tweets fetched from the mentions timeline might not mention JediSwap at all, but
+    instead "inherit" some or all mentions from tweets higher up in the conversation thread.
+    For reply tweets, this method subtracts mentions that have been present in the tweet
+    that's been replied to. For replies to JediSwap, the mention is discounted in any case.
+    """
+
+    discarded = []
+    reply_ids = set()
+
+    def is_reply(tweet_dict) -> bool:
+        if "referenced_tweets" in tweet_dict:
+            ref_types = {x["type"] for x in tweet_dict["referenced_tweets"]}
+            if "replied_to" in ref_types:
+                return True
+        return False
+    
+    def is_reply_to_jediswap(tweet_dict) -> bool:
+        if "in_reply_to_user_id" in tweet_dict:
+            if tweet_dict["in_reply_to_user_id"] == "1470315931142393857":
+                return True
+        return False
+
+    def is_quote(tweet_dict) -> bool:
+        if "referenced_tweets" in tweet_dict:
+            ref_types = {x["type"] for x in tweet_dict["referenced_tweets"]}
+            if "quoted" in ref_types:
+                return True
+        return False
+
+    def get_reply_id(tweet_dict) -> str:
+        for ref in tweet_dict["referenced_tweets"]:
+            if ref["type"] == "replied_to":
+                return ref["id"]
+
+    def get_mentions(tweet_dict) -> list:
+        """Returns a [potentially empty] list of all usernames mentioned in the tweet."""
+        if "entities" in tweet_dict:
+            if "mentions" in tweet_dict["entities"]:
+                mentions = tweet_dict["entities"]["mentions"]
+                usernames = {x["username"] for x in mentions}
+                return list(usernames)      
+        return []
+   
+    def remove_leading_mentions_from_text(tweet_dict) -> dict:
+        """Takes one tweet at a time & removes all leading mentions from the tweet text."""
+        text = tweet_dict["text"]
+        no_space_char = None
+
+        while text.startswith("@") and not no_space_char:
+            newline_index = text.find("\n")
+            space_index = text.find(" ")
+            no_space_char = (newline_index == -1) and (space_index == -1)
+
+            if newline_index == -1:
+                text = text[space_index+1:]
+            elif space_index == -1:
+                text = text[newline_index+1:]
+            else:
+                first_trigger = min(space_index, newline_index)
+                text = text[first_trigger+1:]
+
+        tweet_dict["text"] = text
+        return tweet_dict
+
+    # Trim all leading mentions from all tweets' text attributes
+    out_dict = {k: remove_leading_mentions_from_text(v) for k, v in tweets_dict.items()}      
+
+    # Collect ids of all tweets being replied to
+    for t in tweets_dict.values():
+        if is_reply(t):
+            parent_tweet_id = get_reply_id(t)
+            reply_ids.add(parent_tweet_id)
+    
+    # Query tweet data & create dict for these "parent tweets"
+    tweets_list = get_tweets(list(reply_ids), bearer_token)
+    parent_tweets = {t["id"]: t for t in tweets_list}
+    
+    # Discount mentions inherited from other tweets & drop conditionally from data
+    for _id, t in tweets_dict.items():
+        
+        if is_quote(t):
+            mentions = get_mentions(t)
+            out_dict[_id]["discounted_mentions"] = mentions
+            continue
+
+        if is_reply_to_jediswap(t):
+            t["comment"] = "Tweet is a reply to a JediSwap tweet."
+            discarded.append(t)
+            del out_dict[_id]
+            continue
+
+        if is_reply(t):
+            parent_id = get_reply_id(t)
+            mentions = get_mentions(t)
+            if parent_id in parent_tweets:
+                parent_mentions = get_mentions(parent_tweets[parent_id])
+            else:
+                parent_mentions = []    # <- tweet is reply to deleted tweet
+            
+            # Keep only the difference of the mentions sets
+            discounted_mentions = list(set(mentions)^set(parent_mentions))
+           
+            if "JediSwap" not in mentions:
+                t["comment"] = "Inherited JediSwap mention from other tweet in conversation."
+                discarded.append(t)
+                del out_dict[_id]
+                continue
+                
+            else:
+                 out_dict[_id]["discounted_mentions"] = discounted_mentions
+
+        else:
+            mentions = get_mentions(t)
+            out_dict[_id]["discounted_mentions"] = mentions
+            if "JediSwap" not in mentions:
+                t["comment"] = "No JediSwap mention found. Not a quote tweet either."
+                discarded.append(t)
+                del out_dict[_id]
+    
+    # Append discarded tweets to csv (to keep track of all filtered out tweets)
+    csv_path = "not_mentioning_jediswap.csv"
+
+    if discarded != []:
+        include = ["id", "text", "comment", "created_at", "username", "author_id", "source"]
+        new_data = pd.DataFrame(discarded)[include]
+
+        if exists(csv_path):
+            known_data = csv_to_df(csv_path)
+            new_data = pd.concat([known_data, new_data]) \
+                .drop_duplicates("id") \
+                .sort_values("id")
+        
+        df_to_csv(new_data, csv_path)
+        print(f"Sorted out {len(discarded)} tweets not actually mentioning jediswap. See {csv_path}.")
+
+    return out_dict
 
 def get_filtered_tweets(cutoff_ids=None, add_params=None) -> dict:
     """

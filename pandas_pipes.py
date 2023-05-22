@@ -6,7 +6,7 @@ import re
 import pandas as pd
 import datetime as dt
 
-to_rename = {"username": "user"}
+to_rename = {"username": "user", "discounted_mentions": "mentions"}
 to_drop = ["edit_history_tweet_ids", "public_metrics"]
 final_order = [
     "month",
@@ -19,6 +19,7 @@ final_order = [
     "like_count",
     "quote_count",
     "text",
+    "discounted_mentions",
     "in_reply_to_user_id",
     "created_at",
     "source",
@@ -110,14 +111,10 @@ def add_followers_per_retweets(df) -> pd.DataFrame:
 
 def add_more_than_5_mentions_flag(df) -> pd.DataFrame:
     
-    def set_flag(tweet_text):
-        regex_p = r"@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+.?\s.*@\w+"
-        if re.search(regex_p, tweet_text, flags=re.S):
-            return True
-        else:
-            return False
-        
-    df[">5 mentions"] = df["text"].apply(set_flag)
+    def set_flag(mentions_list):
+        return True if len(mentions_list) > 5 else False
+
+    df[">5 mentions"] = df["discounted_mentions"].apply(set_flag)
     
     return df
 

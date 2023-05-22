@@ -3,8 +3,8 @@
 """
 Script intended to be run manually once a month to generate
 the final dataset for whichever month is specified in {month}.
-All metrics are updated and monthly filters are applied.
-Tweets to be dropped: -deleted tweets, -tweets from suspended accounts.
+When run, all Twitter metrics are updated and the monthly filters are applied.
+Deleted tweets & tweets from suspended accounts are being dropped at this stage.
 """
 
 from os.path import exists
@@ -14,14 +14,15 @@ from main import out_path as db_path
 from query_and_filter import (
     get_tweets,
     apply_filters,
+    discount_mentions,
     bearer_token,
     filter_patterns,
-    discarded_path
+    discarded_path,
 )
 
-month = "March"
+month = "May"
 out_path = f"./{month} Tweet Data.csv"
-assert exists(db_path), f"No database found under {db_path}. Please run main.py first."
+assert exists(db_path), f"No database found in {db_path}. Please run main.py first."
 
 # Get tweet ids
 data = csv_to_df(db_path)
@@ -34,6 +35,7 @@ tweets = get_tweets(tweet_ids, bearer_token, add_params=None)
 # Apply filters
 tweets = apply_filters(tweets, filter_patterns, discarded_path)
 tweets_d = {t["id"]: t for t in tweets}
+tweets_d = discount_mentions(tweets_d)
 in_df = pd.DataFrame.from_dict(tweets_d, orient="index")
 
 # Define output format & data to be ignored
@@ -41,7 +43,7 @@ to_drop.extend(["created_at", "source"])
 to_drop = list(set(to_drop))
 monthly_order = [
     'month', 'parsed_time', 'id', 'conversation_id', 'author_id', 'user', 'points',
-    'followers_per_retweets', '>5 mentions', 'impression_count', 'reply_count',
+    'followers_per_retweets', 'mentions', '>5 mentions', 'impression_count', 'reply_count',
     'retweet_count', 'like_count', 'quote_count', 'followers_count', 'following_count',
     'tweet_count', 'listed_count', 'referenced_tweets', 'text', 'in_reply_to_user_id'
 ]
