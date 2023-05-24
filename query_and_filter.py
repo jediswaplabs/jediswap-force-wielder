@@ -610,7 +610,7 @@ def discount_mentions(tweets_dict) -> dict:
             # Keep only the difference of the mentions sets
             discounted_mentions = list(set(mentions)^set(parent_mentions))
            
-            if "JediSwap" not in mentions:
+            if "JediSwap" not in discounted_mentions:
                 t["comment"] = "Inherited JediSwap mention from other tweet in conversation."
                 discarded.append(t)
                 del out_dict[_id]

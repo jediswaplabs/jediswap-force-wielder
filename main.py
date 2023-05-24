@@ -63,7 +63,7 @@ def run(add_params=add_params):
         
     # Save updated database & preserve type information in 2nd row
     df_to_csv(out_df, out_path, mode="w", sep=",")
-    n_rows = in_df.shape[0] - known_len
+    n_rows = out_df.shape[0] - known_len
     print(f"Appended {n_rows} tweets to", out_path.lstrip("./"), "\n")
 
 if __name__ == "__main__":
