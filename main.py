@@ -21,6 +21,7 @@ from pandas_pipes import *
 out_path = "./Force_Wielders_Data_beta.csv"
 first_run = not exists(out_path)
 add_params = None
+N_TWEETS_QUERIED = 0
 
 def run(add_params=add_params):
 
@@ -65,6 +66,8 @@ def run(add_params=add_params):
     df_to_csv(out_df, out_path, mode="w", sep=",")
     n_rows = out_df.shape[0] - known_len
     print(f"Appended {n_rows} tweets to", out_path.lstrip("./"), "\n")
+    print(f"\nQueried {N_TWEETS_QUERIED} tweets in total.\n")
+
 
 if __name__ == "__main__":
     run(add_params)
