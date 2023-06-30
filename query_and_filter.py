@@ -29,6 +29,7 @@ from pprint import pp, pformat
 from copy import deepcopy
 from dotenv import load_dotenv
 from helpers import *
+from main import N_TWEETS_QUERIED
 load_dotenv('./.env')
 
 
@@ -119,6 +120,7 @@ def simple_query(url, params, bearer_token, infinite=False) -> list:
     Returns tuple (list_of_tweets, response_status_code).
     Tweets causing Authorization or Not Found Error are dropped.
     """
+    global N_TWEETS_QUERIED
     json_response, status_code = connect_to_endpoint(url, params, bearer_token)
 
     if status_code == 429:
@@ -130,6 +132,7 @@ def simple_query(url, params, bearer_token, infinite=False) -> list:
         return ([], status_code)
 
     tweets = json_response["data"]
+    N_TWEETS_QUERIED += len(tweets)
     users = json_response["includes"]["users"]
     merged = merge_user_data(tweets, users)
 
@@ -141,6 +144,7 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
     and most recent query status code. Will abort if no end_trigger is set,
     unless "infinite" is set to True.
     """
+    global N_TWEETS_QUERIED
     if not infinite:
         assert ("since_id" or "start_time" in params), ("No end for querying defined. Will query until rate limit reached!")
 
@@ -167,6 +171,8 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
     tweets_list.extend(tweets)
     users_list.extend(users)
 
+    N_TWEETS_QUERIED += len(tweets)
+
     # Query for a next page as long as there is one & API rate limit is not exceeded
     while ("next_token" in meta) and status_code != 429:
 
@@ -180,6 +186,7 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
             users = json_response["includes"]["users"]
             tweets_list.extend(tweets)
             users_list.extend(users)
+            N_TWEETS_QUERIED += len(tweets)
 
     # Add user data back to original tweets
     out_list = merge_user_data(tweets_list, users_list)
@@ -240,6 +247,7 @@ def query_tweets(url, params, bearer_token) -> list:
     Queries for multiple (max 100) tweets. Merges user & tweet data.
     Returns list of tweets and most recent query status code.
     """
+    global N_TWEETS_QUERIED
     tweets_list = []
     users_list = []
 
@@ -260,6 +268,8 @@ def query_tweets(url, params, bearer_token) -> list:
     users = json_response["includes"]["users"]
     tweets_list.extend(tweets)
     users_list.extend(users)
+
+    N_TWEETS_QUERIED += len(tweets)
 
     # Add user data back to original tweets
     out_list = merge_user_data(tweets_list, users_list)
