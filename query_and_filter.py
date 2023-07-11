@@ -27,14 +27,14 @@ from ast import literal_eval
 from os.path import exists
 from pprint import pp, pformat
 from copy import deepcopy
+from time import sleep
 from dotenv import load_dotenv
 from helpers import *
-from main import N_TWEETS_QUERIED
 load_dotenv('./.env')
-
 
 target_user_id = os.environ.get("TWITTER_USER_ID")
 bearer_token = os.environ.get("API_BEARER_TOKEN")
+N_TWEETS_QUERIED = 0
 
 # Any filtered-out tweets go here for checking if filters work correctly
 discarded_path = "./discarded_tweets.json"
@@ -124,8 +124,10 @@ def simple_query(url, params, bearer_token, infinite=False) -> list:
     json_response, status_code = connect_to_endpoint(url, params, bearer_token)
 
     if status_code == 429:
-        print("Rate limit reached (429: Too many requests). Returning empty list.")
-        return ([], status_code)
+        print("Rate limit reached (429: Too many requests). Waiting for 16m to continue querying.")
+        sleep(16*60)
+        json_response, status_code = connect_to_endpoint(url, params, bearer_token)
+    
     if "errors" in json_response:
         [print(x["title"] + ":", x["detail"]) for x in json_response["errors"]]
     if "data" not in json_response:
@@ -154,10 +156,11 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
     # First query. If no results & no error -> Return emtpy list
     json_response, status_code = connect_to_endpoint(url, params, bearer_token)
 
-    # If rate limit reached (TooManyRequests) -> abort here & return empty list
+    # If rate limit reached (TooManyRequests) -> wait for 16m and continue querying
     if status_code == 429:
-        print("Rate limit reached (429: Too many requests). Returning empty list.")
-        return ([], status_code)
+            print("Rate limit reached (429: Too many requests). Waiting for 16m to continue querying.")
+            sleep(16*60)
+            json_response, status_code = connect_to_endpoint(url, params, bearer_token)
 
     # If end of data reached (last page) -> abort here & return emtpy list
     meta = json_response["meta"]
@@ -254,10 +257,11 @@ def query_tweets(url, params, bearer_token) -> list:
     # Query. If no results & no error -> Return emtpy list
     json_response, status_code = connect_to_endpoint(url, params, bearer_token)
 
-    # If rate limit reached (TooManyRequests) -> abort here & return empty list
+    # If rate limit reached (TooManyRequests) -> wait for 16m and continue querying
     if status_code == 429:
-        print("Rate limit reached (429: Too many requests). Returning empty list.")
-        return ([], status_code)
+            print("Rate limit reached (429: Too many requests). Waiting for 16m to continue querying.")
+            sleep(16*60)
+            json_response, status_code = connect_to_endpoint(url, params, bearer_token)
 
     # If nothing found -> abort here & return emtpy list
     if "data" not in json_response:
@@ -304,9 +308,10 @@ def get_tweets(id_list, bearer_token, add_params=None) -> list:
         out_tweets.extend(tweets)
 
         if status_code == 429:
-            print("Api rate limit reached. Stopped querying for tweets.")
-            if out_tweets != []: print(f"Last tweet queried: {tweets[-1]['id']}.")
-            return out_tweets
+                print("Rate limit reached (429: Too many requests). Waiting for 16m to continue querying.")
+                sleep(16*60)
+                tweets, status_code = query_tweets(url, params, bearer_token)
+                out_tweets.extend(tweets)
 
     if out_tweets == []:
         return []
@@ -337,7 +342,9 @@ def get_new_mentions(user_id, bearer_token, add_params=None) -> list:
     new_mentions, status_code = paginated_query(url, params, bearer_token)
 
     if status_code == 429:
-        print(f"Api rate limit reached. Stopped querying for mentions of user {user_id}.")
+        print(f"Api rate limit reached. Waiting for 16m to get new mentions for user {user_id}.")
+        sleep(16*60)
+        new_mentions, status_code = paginated_query(url, params, bearer_token)
 
     if new_mentions == []:
         return []
@@ -371,6 +378,8 @@ def get_new_tweets_by_user(user_id, bearer_token, add_params=None) -> list:
 
     if status_code == 429:
         print(f"Api rate limit reached. Stopped querying for tweets by user {user_id}.")
+        sleep(16*60)
+        new_tweets, status_code = paginated_query(url, params, bearer_token)
 
     if new_tweets == []:
         return []
@@ -397,6 +406,10 @@ def get_quotes_for_tweet(tweet_id, bearer_token) -> tuple:
 
     if status_code == 429:
         print(f"Api rate limit reached while querying quote tweets of tweet {tweet_id}.")
+        print("Waiting for 16m and continuing to query after.")
+        sleep(16*60)
+        quotes, status_code = paginated_query(url, params, bearer_token, infinite=True)
+
     if quotes == []:
         return ([], status_code)
 
@@ -430,8 +443,9 @@ def get_new_quote_tweets(user_id, bearer_token, add_params=None) -> list:
 
         # If api limit reached -> Abort & return what was fetched so far
         if status_code == 429:
-            print(f"Stopped fetching quote tweets at tweet {t_id}.")
-            break
+            print(f"Rate limit reached. Waiting for 16m. Paused fetching quote tweets at tweet {t_id}.")
+            sleep(16*60)
+            quotes, status_code = get_quotes_for_tweet(t_id, bearer_token)
 
         new_quotes.extend(quotes)
 
