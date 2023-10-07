@@ -92,9 +92,21 @@ def assign_points(df) -> pd.DataFrame:
     df["points"] = df["impression_count"].apply(points_formula)
     
     # 0 points if followers <11 or impressions <50
-    df.loc[df["followers_count"] < 11, 'points'] = 0
-    df.loc[df["impression_count"] < 50, 'points'] = 0
+    df.loc[df["followers_count"] < 11, "points"] = 0
+    df.loc[df["impression_count"] < 50, "points"] = 0
+
+    # 0 points if > 8 mentions
+    df.loc[df["n mentions"] > 8, "points"] = 0
     
+    # Divide by n mentions if > 3 mentions in tweet
+    def adjust_points(row):  
+        if int(row["n mentions"]) > 3:
+           return int(row["points"] / row["n mentions"])
+        else:
+            return int(row["points"])
+    
+    df["points"] = df.apply(adjust_points, axis=1)
+
     return df
 
 def add_followers_per_retweets(df) -> pd.DataFrame:
@@ -115,6 +127,12 @@ def add_more_than_5_mentions_flag(df) -> pd.DataFrame:
         return True if len(mentions_list) > 5 else False
 
     df[">5 mentions"] = df["discounted_mentions"].apply(set_flag)
+    
+    return df
+
+def add_n_mentions(df) -> pd.DataFrame:
+
+    df["n mentions"] = df["discounted_mentions"].apply(lambda mentions: len(mentions))
     
     return df
 

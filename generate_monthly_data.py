@@ -20,7 +20,7 @@ from query_and_filter import (
     discarded_path,
 )
 
-month = "May"
+month = "September"
 out_path = f"./{month} Tweet Data.csv"
 assert exists(db_path), f"No database found in {db_path}. Please run main.py first."
 
@@ -56,6 +56,7 @@ out_df = (in_df.pipe(start_pipeline)
     .pipe(add_followers_per_retweets)
     .pipe(add_month)
     .pipe(add_more_than_5_mentions_flag)
+    .pipe(add_n_mentions)
     .pipe(assign_points)
     .pipe(keep_five_per_author)
     .pipe(add_prefix, "username", "Twitter, ")
