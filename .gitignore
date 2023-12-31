@@ -7,11 +7,11 @@
 !./main.py
 !./generate_monthly_data.py
 !./helpers.py
-!./Selenium_Twitter_Login.py
 !./requirements.txt
 !./README.md
 !./LICENSE
 !./sample.env
+!Selenium_Twitter_Login.py
 
 # Ignore any other files in subdirectories
 !*/

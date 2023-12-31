@@ -68,13 +68,15 @@ def bearer_oauth(r) -> dict:
     r.headers["Authorization"] = f"Bearer {bearer_token}"
     return r
 
+
 def get_query_params() -> dict:
     """Tweet information returned by api is defined here."""
     params = {
         "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
             "referenced_tweets,conversation_id,entities",
         "user.fields": "id,username,entities,public_metrics",
-        "expansions": "author_id,in_reply_to_user_id",
+        "expansions": "author_id,in_reply_to_user_id,attachments.media_keys",
+        "media.fields": "media_key",
         "max_results": "100"
     }
     return params
