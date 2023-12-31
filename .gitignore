@@ -11,6 +11,7 @@
 !./README.md
 !./LICENSE
 !./sample.env
+!Selenium_Twitter_Login.py
 
 # Ignore any other files in subdirectories
 !*/

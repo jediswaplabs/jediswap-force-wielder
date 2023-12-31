@@ -16,9 +16,15 @@ for the attributes mentioned below:
 * tweet contents, timestamp, referenced tweets, conversation id
 * tweet views, replies, quotes, retweets, likes
 * author id, username, followers, following, tweet count, listed count
+* if reply: tagged accounts in media of parent tweet (scraped)
+* if reply: mentions of parent tweet
 
 Each time the script is run, it searches mentions and quotes backwards through time until it
 encounters the most recent tweet from the known data. This is an attempt at the most sparse implementation possible with regards to the total amount of requests, so no tweet should ever be queried for twice. How often the script has to be run to avoid any gaps in the data depends solely on your API tier and the expected activity of your Twitter account & followers. For example, if you are allowed to query for the last 800 mentions using the Twitter mentions timeline, you need to run the script often enough so that there will be less than 800 new mentions since the last time the script fetched data from the API. No harm is done by running the script much more often than necessary to insure against gaps in the data.
+
+**Web scraping**
+
+Some essential information cannot be queried via the Twitter API 2.0, for example the list of users that are tagged in a photo of a tweet. In these cases, the script scrapes the information from the Twitter frontend using [Selenium](https://www.selenium.dev). For this to work, you will have to install the version of [Chromedriver](https://chromedriver.chromium.org) that most closely matches your installed Google Chrome browser. And since the information is only visible to signed in Twitter users, you'll have to create a user data folder as described [here](https://medium.com/web3-use-case/how-to-stay-logged-in-when-using-selenium-in-the-chrome-browser-869854f87fb7) and run the script [Selenium_Twitter_Login.py](https://github.com/jediswaplabs/jediswap-force-wielder/blob/main/Selenium_Twitter_Login.py) once in order to sign into Twitter manually and create a session cookie that the script can then use for the automated scraping. Should it expire, just repeat this step before running the main script.
 
 
 ### Usage
