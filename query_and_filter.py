@@ -23,6 +23,9 @@ import os
 import inspect
 import requests
 import re
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from bs4 import BeautifulSoup
 from ast import literal_eval
 from os.path import exists
 from pprint import pp, pformat
@@ -35,6 +38,7 @@ load_dotenv('./.env')
 target_user_id = os.environ.get("TWITTER_USER_ID")
 bearer_token = os.environ.get("API_BEARER_TOKEN")
 N_TWEETS_QUERIED = 0
+MEDIA_TWEETS = set()        # used as temporary storage for scraping media tags from a tweet on Twitter
 
 # Any filtered-out tweets go here for checking if filters work correctly
 discarded_path = "./discarded_tweets.json"
@@ -58,6 +62,7 @@ filter_patterns = [
     }
 ]
 
+
 def bearer_oauth(r) -> dict:
     """Method required by bearer token authentication."""
     r.headers["Authorization"] = f"Bearer {bearer_token}"
@@ -74,6 +79,7 @@ def get_query_params() -> dict:
     }
     return params
 
+
 def connect_to_endpoint(url, params, bearer_token) -> tuple:
     """Wrapper for Twitter API queries. Returns response & status code."""
     response = requests.request("GET", url, auth=bearer_oauth, params=params)
@@ -88,6 +94,7 @@ def connect_to_endpoint(url, params, bearer_token) -> tuple:
             )
         )
     return (response.json(), response.status_code)
+
 
 def merge_user_data(tweets_list, users_list) -> list:
     """
@@ -114,6 +121,7 @@ def merge_user_data(tweets_list, users_list) -> list:
 
     return out_list
 
+
 def simple_query(url, params, bearer_token, infinite=False) -> list:
     """
     Queries Twitter API as specified in {url} & {params}.
@@ -139,6 +147,7 @@ def simple_query(url, params, bearer_token, infinite=False) -> list:
     merged = merge_user_data(tweets, users)
 
     return (merged, status_code)
+
 
 def paginated_query(url, params, bearer_token, infinite=False) -> list:
     """
@@ -196,6 +205,7 @@ def paginated_query(url, params, bearer_token, infinite=False) -> list:
 
     return (out_list, status_code)
 
+
 def parse_date_range(tweets: list) -> str:
     """Takes a tweets list, returns a str of the earliest & latest tweet date."""
     dates = sorted([t["created_at"] for t in tweets])
@@ -203,6 +213,7 @@ def parse_date_range(tweets: list) -> str:
     earliest = stripped[0]
     latest = stripped[-1]
     return f"{earliest} - {latest}"
+
 
 def get_cutoffs(csv_path) -> dict:
     """
@@ -236,6 +247,7 @@ def get_cutoffs(csv_path) -> dict:
 
     return cutoff_d
 
+
 def tweets_to_json(tweets: list, name: str) -> None:
     """Saves a tweets list to json. Appends its date range to name."""
     if tweets == []:
@@ -244,6 +256,7 @@ def tweets_to_json(tweets: list, name: str) -> None:
     date_range = parse_date_range(tweets)
     out_name = f"{date_range} unfiltered {name}.json"
     write_list_to_json(tweets, out_name)
+
 
 def query_tweets(url, params, bearer_token) -> list:
     """
@@ -279,6 +292,7 @@ def query_tweets(url, params, bearer_token) -> list:
     out_list = merge_user_data(tweets_list, users_list)
 
     return (out_list, status_code)
+
 
 def get_tweets(id_list, bearer_token, add_params=None) -> list:
     """
@@ -323,6 +337,7 @@ def get_tweets(id_list, bearer_token, add_params=None) -> list:
 
     return out_tweets
 
+
 def get_new_mentions(user_id, bearer_token, add_params=None) -> list:
     """
     Queries mentions timeline of Twitter user until tweet id from
@@ -357,6 +372,7 @@ def get_new_mentions(user_id, bearer_token, add_params=None) -> list:
     tweets_to_json(new_mentions, func_name)
 
     return new_mentions
+
 
 def get_new_tweets_by_user(user_id, bearer_token, add_params=None) -> list:
     """
@@ -396,6 +412,7 @@ def get_new_tweets_by_user(user_id, bearer_token, add_params=None) -> list:
 
     return new_tweets
 
+
 def get_quotes_for_tweet(tweet_id, bearer_token) -> tuple:
     """Queries API for all quote tweets of {tweet_id}."""
 
@@ -418,6 +435,7 @@ def get_quotes_for_tweet(tweet_id, bearer_token) -> tuple:
     [x.update({"source": func_name}) for x in quotes]
 
     return (quotes, status_code)
+
 
 def get_new_quote_tweets(user_id, bearer_token, add_params=None) -> list:
     """
@@ -455,6 +473,7 @@ def get_new_quote_tweets(user_id, bearer_token, add_params=None) -> list:
         tweets_to_json(new_quotes, func_name)
 
     return new_quotes
+
 
 def remove_if_regex_matches(tweets, regex_p, discarded_json_path, discarded_key, regex_flag=None) -> list:
     """
@@ -507,6 +526,7 @@ def remove_if_regex_matches(tweets, regex_p, discarded_json_path, discarded_key,
 
     return out_tweets
 
+
 def apply_filters(tweets, filters, discarded_json_path) -> list:
     """
     Takes a list of tweets. Returns the same list with all tweets removed where a regex pattern from
@@ -529,6 +549,40 @@ def apply_filters(tweets, filters, discarded_json_path) -> list:
         )
 
     return tweets
+
+
+def scrape_image_tags(tweet_dict) -> list:
+    """
+    Scrapes all Twitter accounts tagged in an image within a single tweet and returns them as a list.
+    This needs to be scraped from web since it's not supported via official Twitter API 2.0.
+    """
+    tweet_id = tweet_dict["id"]
+    username = tweet_dict["username"]
+    print(f"Scraping image tags for tweet {tweet_id}...")
+    
+    # Construct url
+    target_url = 'https://twitter.com/' + username + '/status/' + str(tweet_id) + '/media_tags'
+    
+    # Scrape Twitter frontend web content for this tweet
+    options = Options()
+    options.add_argument("--user-data-dir=ChromeUserData")
+    options.add_argument("--remote-debugging-port=9222")
+    options.page_load_strategy = 'normal'
+    driver = webdriver.Chrome(options=options)
+    
+    driver.get(target_url)
+    sleep(80)
+    resp = driver.page_source
+    driver.close()
+    soup = BeautifulSoup(resp, 'html.parser')
+
+    # Parse users from frontend modal to list
+    modal = soup.find("div", {"role":"group"})
+    users = modal.find_all("div",{"class":"css-1rynq56 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-qvutc0 r-37j5jr r-a023e6 r-rjixqe r-16dba41 r-18u37iz r-1wvb978"})
+    tagged_users_list = [x.text.replace('@', '') for x in users]
+        
+    return tagged_users_list
+
 
 def discount_mentions(tweets_dict) -> dict:
     """
@@ -553,6 +607,31 @@ def discount_mentions(tweets_dict) -> dict:
             if tweet_dict["in_reply_to_user_id"] == "1470315931142393857":
                 return True
         return False
+    
+
+
+
+
+
+
+
+    def is_reply_to_tweet_tagging_js_in_a_picture(tweet_dict) -> bool:
+        # call this only if tweet is reply
+        # have global var MEDIA_TWEETS of shape {tweet_id: [tag_1, tag2, ...]}
+        # get id of tweet that is being replied to
+        # if tweet in dict: return True if JS in tags of tweet
+        # if tweet not in dict: call scrape_image_tags(tweet_id) -> add tweet_id: tags_list to MEDIA_TWEETS -> if JS in mentions: return True, else False
+
+
+        return False
+
+
+
+
+
+
+
+
 
     def is_quote(tweet_dict) -> bool:
         if "referenced_tweets" in tweet_dict:
@@ -668,6 +747,7 @@ def discount_mentions(tweets_dict) -> dict:
         print(f"Sorted out {len(discarded)} tweets not actually mentioning jediswap. See {csv_path}.")
 
     return out_dict
+
 
 def get_filtered_tweets(cutoff_ids=None, add_params=None) -> dict:
     """
