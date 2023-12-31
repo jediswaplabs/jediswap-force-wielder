@@ -38,7 +38,7 @@ load_dotenv('./.env')
 target_user_id = os.environ.get("TWITTER_USER_ID")
 bearer_token = os.environ.get("API_BEARER_TOKEN")
 N_TWEETS_QUERIED = 0
-MEDIA_TWEETS = set()        # used as temporary storage for scraping media tags from a tweet on Twitter
+MEDIA_TWEETS = {}        # used as temporary storage for scraping media tags from a tweet on Twitter
 
 # Any filtered-out tweets go here for checking if filters work correctly
 discarded_path = "./discarded_tweets.json"
@@ -570,17 +570,25 @@ def scrape_image_tags(tweet_dict) -> list:
     options.page_load_strategy = 'normal'
     driver = webdriver.Chrome(options=options)
     
-    driver.get(target_url)
-    sleep(80)
-    resp = driver.page_source
-    driver.close()
-    soup = BeautifulSoup(resp, 'html.parser')
+    try:
+        driver.get(target_url)
+        sleep(80)
+        resp = driver.page_source
+        soup = BeautifulSoup(resp, 'html.parser')
 
-    # Parse users from frontend modal to list
-    modal = soup.find("div", {"role":"group"})
-    users = modal.find_all("div",{"class":"css-1rynq56 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-qvutc0 r-37j5jr r-a023e6 r-rjixqe r-16dba41 r-18u37iz r-1wvb978"})
-    tagged_users_list = [x.text.replace('@', '') for x in users]
+        # Parse users from frontend modal to list
+        modal = soup.find("div", {"role":"group"})
+        users = modal.find_all("div",{"class":"css-1rynq56 r-dnmrzs r-1udh08x r-3s2u2q r-bcqeeo r-qvutc0 r-37j5jr r-a023e6 r-rjixqe r-16dba41 r-18u37iz r-1wvb978"})
+        tagged_users_list = [x.text.replace('@', '') for x in users]
+        print(f"Done. Got these tagged users: {tagged_users_list}")
         
+    except:
+        tagged_users_list = []
+        print(f"Couldn't scrape {target_url}. Returned empty list of users tagged in media.")
+
+    finally:
+        driver.close()
+    
     return tagged_users_list
 
 
@@ -591,7 +599,7 @@ def discount_mentions(tweets_dict) -> dict:
     For reply tweets, this method subtracts mentions that have been present in the tweet
     that's been replied to. For replies to JediSwap, the mention is discounted in any case.
     """
-
+    global MEDIA_TWEETS
     discarded = []
     reply_ids = set()
 
@@ -608,30 +616,14 @@ def discount_mentions(tweets_dict) -> dict:
                 return True
         return False
     
-
-
-
-
-
-
-
-    def is_reply_to_tweet_tagging_js_in_a_picture(tweet_dict) -> bool:
-        # call this only if tweet is reply
-        # have global var MEDIA_TWEETS of shape {tweet_id: [tag_1, tag2, ...]}
-        # get id of tweet that is being replied to
-        # if tweet in dict: return True if JS in tags of tweet
-        # if tweet not in dict: call scrape_image_tags(tweet_id) -> add tweet_id: tags_list to MEDIA_TWEETS -> if JS in mentions: return True, else False
-
-
-        return False
-
-
-
-
-
-
-
-
+    def contains_media(tweet_dict) -> bool:
+        # Returns True if tweet contains media, False if not
+        if 'entities' in tweet_dict:
+            if 'urls' in tweet_dict['entities']:
+                urls = tweet_dict['entities']['urls']
+                if any('media_key' in x for x in urls):
+                    return True
+        return False    
 
     def is_quote(tweet_dict) -> bool:
         if "referenced_tweets" in tweet_dict:
@@ -674,6 +666,7 @@ def discount_mentions(tweets_dict) -> dict:
 
         tweet_dict["text"] = text
         return tweet_dict
+    
 
     # Trim all leading mentions from all tweets' text attributes
     out_dict = {k: remove_leading_mentions_from_text(v) for k, v in tweets_dict.items()}      
@@ -701,14 +694,31 @@ def discount_mentions(tweets_dict) -> dict:
             discarded.append(t)
             del out_dict[_id]
             continue
-
+        
+        # Remove mentions that have been inherited from parent tweets or parent photo tags
         if is_reply(t):
             parent_id = get_reply_id(t)
             mentions = get_mentions(t)
+            
+            # Get mentions of parent tweet
             if parent_id in parent_tweets:
-                parent_mentions = get_mentions(parent_tweets[parent_id])
+                parent_tweet_dict = parent_tweets[parent_id]
+                parent_mentions = get_mentions(parent_tweet_dict)
+                
+                # Get photo tags of parent tweet and add to mentions 
+                if contains_media(parent_tweet_dict):
+                    if parent_id in MEDIA_TWEETS:
+                        tagged_users_list = MEDIA_TWEETS[parent_id]["tagged_users_list"]
+                    else:
+                        tagged_users_list = scrape_image_tags(parent_tweet_dict)
+                        parent_tweet_dict["tagged_users_list"] = tagged_users_list
+                        MEDIA_TWEETS[parent_id] = parent_tweet_dict
+                        
+                    parent_mentions.extend(tagged_users_list)
+
+            # Case: Tweet is reply to deleted tweet: Nothing to remove
             else:
-                parent_mentions = []    # <- tweet is reply to deleted tweet
+                parent_mentions = []
             
             # Keep only the difference of the mentions sets
             discounted_mentions = list(set(mentions)^set(parent_mentions))
