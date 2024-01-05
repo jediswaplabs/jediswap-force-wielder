@@ -20,7 +20,7 @@ from query_and_filter import (
     discarded_path,
 )
 
-month = "November"
+month = "December"
 out_path = f"./{month} Tweet Data.csv"
 assert exists(db_path), f"No database found in {db_path}. Please run main.py first."
 
@@ -43,9 +43,10 @@ to_drop.extend(["created_at", "source"])
 to_drop = list(set(to_drop))
 monthly_order = [
     'month', 'parsed_time', 'id', 'conversation_id', 'author_id', 'user', 'points',
-    'followers_per_retweets', 'n mentions', 'mentions', '>5 mentions', 'impression_count', 'reply_count',
-    'retweet_count', 'like_count', 'quote_count', 'followers_count', 'following_count',
-    'tweet_count', 'listed_count', 'referenced_tweets', 'text', 'in_reply_to_user_id'
+    'followers_per_retweets', 'n mentions', 'mentions', '>5 mentions', 'truncated_text',
+    'impression_count', 'reply_count', 'retweet_count', 'like_count', 'quote_count',
+    'followers_count', 'following_count', 'tweet_count', 'listed_count', 'referenced_tweets',
+    'text', 'in_reply_to_user_id'
 ]
 
 # Reshape data
@@ -56,6 +57,7 @@ out_df = (in_df.pipe(start_pipeline)
     .pipe(add_followers_per_retweets)
     .pipe(add_month)
     .pipe(add_more_than_5_mentions_flag)
+    .pipe(add_truncated_text_flag)
     .pipe(add_n_mentions)
     .pipe(assign_points)
     .pipe(keep_five_per_author)
