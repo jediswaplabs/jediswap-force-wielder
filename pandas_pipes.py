@@ -130,6 +130,15 @@ def add_more_than_5_mentions_flag(df) -> pd.DataFrame:
     
     return df
 
+def add_truncated_text_flag(df) -> pd.DataFrame:
+    
+    def set_flag(tweet_text):
+        return True if tweet_text.find("…") != -1 else False
+
+    df["truncated_text"] = df["text"].apply(set_flag)
+    
+    return df
+
 def add_n_mentions(df) -> pd.DataFrame:
 
     df["n mentions"] = df["discounted_mentions"].apply(lambda mentions: len(mentions))
