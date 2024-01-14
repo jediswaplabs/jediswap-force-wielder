@@ -332,6 +332,9 @@ def get_tweets(id_list, bearer_token, add_params=None) -> list:
     if out_tweets == []:
         return []
 
+    # De-truncate tweets longer than 140 chars
+    tweets = de_truncate(tweets)
+
     # Add function name to tweets & save queried data to json as backup
     func_name = str(inspect.currentframe().f_code.co_name + "()")
     [x.update({"source": func_name}) for x in out_tweets]
@@ -594,6 +597,36 @@ def scrape_image_tags(tweet_dict) -> list:
     return tagged_users_list
 
 
+def de_truncate(tweets_list) -> list:
+    
+    for t in tweets_list:
+
+        # Reconstruct original tweet text
+        t["text"] = t["text"] if "note_tweet" not in t else t["note_tweet"]["text"]
+
+        # Reconstruct mentions & urls from the original tweet
+        if "note_tweet" in t:
+            if "entities" in t["note_tweet"]:
+                
+                if "mentions" in t["note_tweet"]["entities"]:
+                    if "entities" in t:
+                        t["entities"]["mentions"] = t["note_tweet"]["entities"]["mentions"]
+                    else:
+                        t["entities"] = {}
+                        t["entities"]["mentions"] = t["note_tweet"]["entities"]["mentions"]
+                        
+                if "urls" in t["note_tweet"]["entities"]:
+                    if "entities" in t:
+                        t["entities"]["urls"] = t["note_tweet"]["entities"]["urls"]
+                    else:
+                        t["entities"] = {}
+                        t["entities"]["urls"] = t["note_tweet"]["entities"]["urls"]
+        else:
+            continue
+
+    return tweets_list
+
+
 def discount_mentions(tweets_dict) -> dict:
     """
     Tweets fetched from the mentions timeline might not mention JediSwap at all, but
@@ -812,6 +845,9 @@ def get_filtered_tweets(cutoff_ids=None, add_params=None) -> dict:
 
     # Merge to one list & keep only 1 entry per tweet id
     tweets = merge_unique([new_mentions, new_quotes], unique_att="id")
+
+    # De-truncate tweets longer than 140 chars
+    tweets = de_truncate(tweets)
 
     # Apply regex filters
     filtered_tweets = apply_filters(tweets, filter_patterns, discarded_path)
