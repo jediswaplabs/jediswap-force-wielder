@@ -72,7 +72,7 @@ def bearer_oauth(r) -> dict:
 def get_query_params() -> dict:
     """Tweet information returned by api is defined here."""
     params = {
-        "tweet.fields": "created_at,public_metrics,in_reply_to_user_id," + \
+        "tweet.fields": "created_at,public_metrics,in_reply_to_user_id,note_tweet," + \
             "referenced_tweets,conversation_id,entities",
         "user.fields": "id,username,entities,public_metrics",
         "expansions": "author_id,in_reply_to_user_id,attachments.media_keys",
@@ -333,7 +333,7 @@ def get_tweets(id_list, bearer_token, add_params=None) -> list:
         return []
 
     # De-truncate tweets longer than 140 chars
-    tweets = de_truncate(tweets)
+    out_tweets = de_truncate(out_tweets)
 
     # Add function name to tweets & save queried data to json as backup
     func_name = str(inspect.currentframe().f_code.co_name + "()")
